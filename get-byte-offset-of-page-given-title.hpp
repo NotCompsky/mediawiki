@@ -15,17 +15,50 @@
 
 constexpr std::size_t max_line_sz = 19+1+10+1+255;
 
-std::string_view find_line_containing_title(const char* const title_requested){
+std::string_view find_line_containing_title(const char* const title_requested,  const uint32_t pageid){
 	char* const title_str = reinterpret_cast<char*>(malloc(1+strlen(title_requested)+1));
 	title_str[0] = ':';
 	memcpy(title_str+1, title_requested, strlen(title_requested));
 	title_str[1+strlen(title_requested)] = '\n';
 	const char* title_itr = title_str;
+	// -------------------------------------------------------
+	constexpr std::size_t buf1_sz = 1024*1024 * 10;
+	constexpr std::size_t buf_sz = 1024*1024 * 10;
+	char* const contents = reinterpret_cast<char*>(malloc(buf_sz));
 	
-	constexpr std::size_t buf_sz = 1024*1024; // 4.498 if 1MiB vs 4.503 if 5MiB vs 4.569 if 10MiB
-	char* const contents = reinterpret_cast<char*>(malloc(buf_sz + max_line_sz*2));
+	const int compressed_fd = open("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt.bz2", O_RDONLY);
+	if (unlikely(compressed_fd == 0)){
+		write(2, "ERROR: Cannot open index file\n", 30);
+		return std::string_view(nullptr,0);
+	}
+	bz_stream fd;
+	memset(&fd, 0, sizeof(fd));
+	char* const buf1 = reinterpret_cast<char*>(malloc(buf1_sz));
+	if (unlikely(BZ2_bzDecompressInit(&fd, 0, 0 /*int: variable called 'small' for lower-memory decompression*/) != BZ_OK)){
+		write(2, "ERROR: BZ2_bzDecompressInit\n", 28);
+		return std::string_view(nullptr,0);
+	}
+	fd.next_in = buf1;
+	fd.avail_in = buf1_sz;
+	fd.next_out = contents;
+	fd.avail_out = buf_sz;
 	
-	const gzFile fd = gzopen("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt.gz", "rb");
+	if (pageid != 0){
+		// TODO
+		if (unlikely(lseek(compressed_fd, init_offset_bytes, SEEK_SET) != init_offset_bytes)){
+			write(2, "ERROR: lseek\n", 13);
+			return std::string_view(nullptr,0);
+		}
+	}
+	fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
+	int bz2_decompress_rc = BZ2_bzDecompress(&fd);
+	if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
+		write(2, "ERROR: BZ2_bzDecompress\n", 24);
+		return std::string_view(nullptr,0);
+	}
+	
+	char* _start_of_this_page = nullptr;
+	std::size_t _start_of_this_page_sz;
 	
 	unsigned which_field_currently_parsing = 0;
 	
@@ -34,8 +67,8 @@ std::string_view find_line_containing_title(const char* const title_requested){
 	
 	unsigned indx;
 	while(true){
-		for (indx = 0;  indx < contents_read_into_buf;  ++indx){
-			const char c = contents[indx];
+		for (unsigned i = 0;  i < buf_sz - fd.avail_out;  ++i){
+			const char c = contents[i];
 			if (unlikely(c == *title_itr)){
 				if (unlikely(*title_itr == '\n'))
 					goto found_results;
@@ -45,15 +78,37 @@ std::string_view find_line_containing_title(const char* const title_requested){
 			}
 		}
 		
-		memcpy(contents+buf_sz, contents, max_line_sz);
-		contents_read_into_buf = gzread(fd, contents, buf_sz);
-		if (contents_read_into_buf == 0)
+		if (bz2_decompress_rc == BZ_STREAM_END)
 			break;
+		fd.avail_out = buf_sz;
+		fd.next_out = contents;
+		if (fd.avail_in == 0){
+			fd.next_in = buf1;
+			fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
+		}
+		bz2_decompress_rc = BZ2_bzDecompress(&fd);
+		if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
+			write(2, "ERROR: BZ2_bzDecompress\n", 24);
+			goto extraction_failed;
+		}
 	}
+	
+	
+	
+	finish_extraction:
+	
+	BZ2_bzDecompressEnd(&fd);
+	close(compressed_fd);
 	
 	return std::string_view(nullptr,0);
 	
+	
+	
 	found_results:
+	
+	BZ2_bzDecompressEnd(&fd);
+	close(compressed_fd);
+	
 	char* _end_of_line = contents + indx;
 	if (unlikely(indx < max_line_sz+1)){
 		// Possible that we need to consult previously memcpy'd buffer
