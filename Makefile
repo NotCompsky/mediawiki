@@ -1,10 +1,7 @@
 default: ~/bin/wiki_page-sql ~/bin/wiki_pagelinks ~/bin/wiki_extract-page-given-id ~/bin/wiki_extract-page-given-title ~/bin/wiki_get-byte-offset-given-title
 
-read_wikimedia-page-sql--old:
-	c++ -std=c++20 -O3 read_wikimedia-page-sql.cpp -o read_wikimedia-page-sql--old -lz
-
 ~/bin/wiki_page-sql:
-	c++ -std=c++20 -O3 read_wikimedia-page-sql--better.cpp -o ~/bin/wiki_page-sql -lbz2 -lz
+	c++ -std=c++20 -O3 read_wikimedia-page-sql.cpp -o ~/bin/wiki_page-sql -lbz2 -lz
 
 ~/bin/wiki_pagelinks:
 	c++ -std=c++20 -O3 read_wikimedia-pagelinks-sql.cpp -o ~/bin/wiki_pagelinks -lz -march=native

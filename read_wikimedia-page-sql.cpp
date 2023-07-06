@@ -13,16 +13,27 @@
 #include <compsky/asciify/asciify.hpp>
 #include "read_wikimedia-page-sql.hpp"
 
-constexpr size_t initial_offset =
-	2115 // if enwiki-20230620-page.sql
-;
+#ifdef USE_BZIP2
+# define BZ_NO_STDIO // restricts bzip2 library
+# include <bzlib.h>
+#else
+# include <zlib.h>
+#endif
 
+struct BEntry {
+	uint32_t byte_offset;
+	uint32_t pl_pageid;
+	uint8_t pl_title_sz;
+	char pl_title[255];
+	void reset(){
+		byte_offset = 0;
+		pl_pageid = 0;
+		pl_title_sz = 0;
+	}
+};
 
 int main(const int argc,  const char* const* const argv){
 	using namespace wikipedia::page;
-	
-	constexpr std::string_view depreciated_msg = "NOTE: Recommend using 'enwiki-20230620-pages-articles-multistream-index.txt.bz2', which contains same information but is much faster\n";
-	write(2, depreciated_msg.data(), depreciated_msg.size());
 	
 	constexpr std::string_view usage_str =
 		"USAGE: [[OPTIONS]]\n"
@@ -37,8 +48,21 @@ int main(const int argc,  const char* const* const argv){
 	const char* errstr1 = nullptr;
 	const char* errstr2 = nullptr;
 	
-	const char* const filepath = "/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-page.sql.gz"; // argv[1];
-	const gzFile fd = gzopen(filepath, "rb");
+	constexpr std::size_t buf1_sz = 1024*1024 * 10;
+	constexpr std::size_t buf_sz = 1024*1024 * 10;
+	char* const contents = reinterpret_cast<char*>(malloc(buf_sz));
+	
+	const char* const filepath = "/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt."
+#ifdef USE_BZIP2
+		"bz2"
+#else
+		"gz"
+#endif
+	;
+	
+#ifdef USE_BZIP2
+	const int compressed_fd = open(filepath, O_RDONLY);
+#endif
 	
 	std::vector<EntryIndirect> entries_from_file;
 	std::vector<StringView> entries_from_file__which_have_no_pageids;
@@ -48,6 +72,22 @@ int main(const int argc,  const char* const* const argv){
 	unsigned entries_from_file__which_have_no_pageids__strbuf_itroffset = 0;
 	
 	bool list_all_pageids_and_exit = false;
+	
+#ifdef USE_BZIP2
+	bz_stream fd;
+	memset(&fd, 0, sizeof(fd));
+	char* const buf1 = reinterpret_cast<char*>(malloc(buf1_sz));
+	if (unlikely(BZ2_bzDecompressInit(&fd, 0, 0 /*int: variable called 'small' for lower-memory decompression*/) != BZ_OK)){
+		errstr1 = "BZ2_bzDecompressInit error\n";
+		goto print_err_and_exit;
+	}
+	fd.next_in = buf1;
+	fd.avail_in = buf1_sz;
+	fd.next_out = contents;
+	fd.avail_out = buf_sz;
+#else
+	const gzFile fd = gzopen(filepath, "rb");
+#endif
 	
 	for (unsigned i = 1;  i < argc;  ++i){
 		const char* const arg = argv[i];
@@ -126,11 +166,7 @@ int main(const int argc,  const char* const* const argv){
 		}
 	}
 	
-	constexpr std::size_t buf_sz = 4096;
-	char buf[buf_sz];
-	
-	std::size_t contents_read_into_buf;
-	Entry entry;
+	BEntry entry;
 	unsigned which_field_currently_parsing = 0;
 	bool escaped_last_char = false;
 	unsigned number_of_single_quotes = 0;
@@ -138,75 +174,49 @@ int main(const int argc,  const char* const* const argv){
 	
 	const char* expecting_next_chars = nullptr;
 	
-	char contents[buf_sz];
-	if (unlikely(gzread(fd, contents, initial_offset) != initial_offset)) // Skip first initial_offset bytes
-		return 1;
+	std::size_t contents_read_into_buf;
+#ifdef USE_BZIP2
+	fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
+	contents_read_into_buf = buf_sz - fd.avail_out;
+	int bz2_decompress_rc = BZ2_bzDecompress(&fd);
+	if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
+		errstr1 = "first BZ2_bzDecompress error\n";
+		goto print_err_and_exit;
+	}
+#else
 	contents_read_into_buf = gzread(fd, contents, buf_sz);
+#endif
+	
+	uint64_t n_read_bytes = 0;
 	while(true){
-		// printf("fd.total_in\r", fd->total_in);
 		for (unsigned i = 0;  i < contents_read_into_buf;  ++i){
 			const char c = contents[i];
 			// printf("c %c of %u\n", c, which_field_currently_parsing); fflush(stdout);
-			if (
-				(c == ',') and
-				not ((which_field_currently_parsing==2) and (number_of_single_quotes&1 == 1))
-			){
-				++which_field_currently_parsing;
-				if (which_field_currently_parsing == 12){
-					if (unlikely(entry.pl_pageid != 0)){
-						return errandexit("Hasn't been reset yet", contents, i);
-					}
-					which_field_currently_parsing = 0;
-				}
-				number_of_single_quotes = 0;
-				continue;
-			}
 			switch(which_field_currently_parsing){
 				case 0:
-					if (c != '('){
+					if (c == ':'){
+						++which_field_currently_parsing;
+					} else {
+						entry.byte_offset *= 10;
+						entry.byte_offset += c - '0';
+					}
+					break;
+				case 1:
+					if (c == ':'){
+						++which_field_currently_parsing;
+					} else {
 						entry.pl_pageid *= 10;
 						entry.pl_pageid += c - '0';
 					}
 					break;
-				case 1:
-					entry.pl_namespace *= 10;
-					entry.pl_namespace += c - '0';
-					break;
 				case 2:
-					if (number_of_single_quotes == 0){
-						// Beginning of title
-						if (unlikely(c != '\'')){
-							return errandexit("Expected ' but didn't get it", contents, i);
-						} else {
-							escaped_last_char = false;
-							++number_of_single_quotes;
-						}
-					} else {
-						if ((c == '\'') and not (unlikely(escaped_last_char))){
-							++number_of_single_quotes;
-							if (unlikely(number_of_single_quotes&1 == 1)){
-								// The string is: 'foobar''reegee'
-								// which is SQL escape for: "foobar'reegee"
-								entry.pl_title[entry.pl_title_sz++] = '\'';
-							}
-						} else {
-							if ((unlikely(c == '\\')) and not (unlikely(escaped_last_char))){
-								escaped_last_char = true;
-							} else {
-								entry.pl_title[entry.pl_title_sz++] = c;
-								escaped_last_char = false;
-							}
-						}
-					}
-					break;
-				case 11:
-					if (c == ')'){
+					if (c == '\n'){
 						if (entries_from_file__which_have_no_pageids.size() != 0){
 							const uint64_t _title_offset_and_sz = in_list(entries_from_file__which_have_no_pageids__strbuf, entry.pl_title, entry.pl_title_sz, entries_from_file__which_have_no_pageids);
 							if (_title_offset_and_sz != 0){
 								const uint32_t _title_offset = _title_offset_and_sz >> 8;
 								const uint8_t _title_sz = _title_offset_and_sz & 255;
-								wikipedia::page::update_pageid2title_ls(entries_from_file__which_have_no_pageids__strbuf, entry, entries_from_file, _title_offset, _title_sz);
+								wikipedia::page::update_pageid2title_ls(entries_from_file__which_have_no_pageids__strbuf, entry.pl_pageid, entries_from_file, _title_offset, _title_sz);
 								// printf("%u %.*s\n", (unsigned)entry.pl_pageid, (int)entry.pl_title_sz, entry.pl_title);
 							}
 						}
@@ -220,36 +230,42 @@ int main(const int argc,  const char* const* const argv){
 							}
 						}
 						entry.reset();
-					} else if (unlikely(c == ';')){
-						reached_end_of_sql_statement = true;
-						expecting_next_chars = "\nINSERT INTO `page` VALUES (";
-						// errandexit("reached_end_of_sql_statement", contents, i);
-					} else if (unlikely(expecting_next_chars != nullptr)){
-						if (likely(c == *expecting_next_chars)){
-							// NOTE: expecting_next_chars ends with null-byte, so it is safe because c!=0
-							++expecting_next_chars;
-							if (c == '('){
-								reached_end_of_sql_statement = false; // Reached new SQL statement
-								expecting_next_chars = nullptr;
-								which_field_currently_parsing = 0;
-								number_of_single_quotes = 0;
-							}
-						} else if (c == '/'){
-							goto reached_end_of_dump;
-						} else {
-							return errandexit("Unexpected char when reached_end_of_sql_statement is true", contents, i);
-						}
-						// End of SQL statement - usually a new one afterwards
+						which_field_currently_parsing = 0;
+					} else {
+						entry.pl_title[entry.pl_title_sz++] = c;
 					}
 					break;
 			}
 		}
-		// fprintf(stderr, "contents_read_into_buf %lu\n", contents_read_into_buf);
-		contents_read_into_buf = gzread(fd, contents, buf_sz);
-		if (unlikely(contents_read_into_buf == 0))
+		
+#ifdef USE_BZIP2
+		if (bz2_decompress_rc == BZ_STREAM_END)
 			break;
+		fd.avail_out = buf_sz;
+		fd.next_out = contents;
+		if (fd.avail_in == 0){
+			n_read_bytes += buf1_sz;
+			printf("Read %lu orig bytes\r", (uint64_t)n_read_bytes);
+			fd.next_in = buf1;
+			fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
+		}
+		bz2_decompress_rc = BZ2_bzDecompress(&fd);
+		if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
+			errstr1 = "BZ2_bzDecompress error\n";
+			goto print_err_and_exit;
+		}
+#else
+		contents_read_into_buf = gzread(fd, contents, buf_sz);
+		if (contents_read_into_buf == 0)
+			break;
+#endif
 	}
-	reached_end_of_dump:
+	
+#ifdef USE_BZIP2
+	BZ2_bzDecompressEnd(&fd);
+	close(compressed_fd);
+#endif
+	
 	for (const EntryIndirect& entry : entries_from_file){
 		if (entry.is_wiki_page){
 			if (entry.pl_pageid != 0)
