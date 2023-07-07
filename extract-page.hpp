@@ -16,6 +16,11 @@
 #define BZ_NO_STDIO // restricts bzip2 library
 #include <bzlib.h>
 
+namespace extract_page_details {
+	constexpr std::size_t buf1_sz = 1024*1024 * 10;
+	constexpr std::size_t buf_sz = 1024*1024 * 10;
+}
+
 /*
 struct IndxAndUrl {
 	const std::string_view url;
@@ -41,6 +46,8 @@ struct IndxAndUrlOffset {
 };
 
 std::string_view process_file(char* const output_buf,  const char* searching_for_pageid__as_str,  const off_t init_offset_bytes,  uint32_t* all_citation_urls,  const bool extract_as_html){
+	using namespace extract_page_details;
+	
 	char searching_for_pageid__buf[4+10+5+1];
 	char* searching_for_pageid = searching_for_pageid__buf;
 	{
@@ -58,8 +65,6 @@ std::string_view process_file(char* const output_buf,  const char* searching_for
 		searching_for_pageend__buf = "\n  </page>\n";
 	}
 	
-	constexpr std::size_t buf1_sz = 1024*1024 * 10;
-	constexpr std::size_t buf_sz = 1024*1024 * 10;
 	char* const contents = reinterpret_cast<char*>(malloc(buf_sz));
 	
 	const int compressed_fd = open("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream.xml.bz2", O_RDONLY);
