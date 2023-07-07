@@ -15,7 +15,9 @@ int main(const int argc,  const char* const* const argv){
 		return 1;
 	}
 	
+	pages_articles_multistream_index_txt_offsetted_gz__init();
 	const std::string_view result = find_line_containing_title(argv[1]);
+	pages_articles_multistream_index_txt_offsetted_gz__deinit();
 	write(1, result.data(), result.size());
 	
 	return 0;

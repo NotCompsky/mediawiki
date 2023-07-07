@@ -11,11 +11,30 @@
 #include <cstring> // for memcpy
 #include <string_view>
 #include <compsky/asciify/asciify.hpp>
-#include <zlib.h>
+// #include <zlib.h> replaced by gzguts.hpp
 #include "gzguts.hpp"
+#include "pages-articles-multistream-index.index.hpp"
 
 
 constexpr std::size_t max_line_sz = 19+1+10+1+255;
+
+static gz_state pages_articles_multistream_index_txt_offsetted_gz__fd;
+
+void pages_articles_multistream_index_txt_offsetted_gz__init(){
+	gz_state& fd = pages_articles_multistream_index_txt_offsetted_gz__fd;
+	fd.size = 0;            /* no buffers allocated yet */
+    fd.want = 8192*1024;    /* requested buffer size */
+    fd.msg = nullptr;       /* no error message yet */
+    fd.mode = GZ_READ;
+	fd.level = Z_DEFAULT_COMPRESSION;
+    fd.strategy = Z_DEFAULT_STRATEGY;
+    fd.direct = 1;
+	// fd.path = "[hardcoded_path_for_gzip_error_printing]";
+	fd.fd = open("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt.offsetted.gz", O_RDONLY);
+}
+void pages_articles_multistream_index_txt_offsetted_gz__deinit(){
+	gzclose_r(&pages_articles_multistream_index_txt_offsetted_gz__fd);
+}
 
 std::string_view find_line_containing_title(const char* const title_requested){
 	char* const title_str = reinterpret_cast<char*>(malloc(1+strlen(title_requested)+1));
@@ -27,22 +46,17 @@ std::string_view find_line_containing_title(const char* const title_requested){
 	constexpr std::size_t buf_sz = 1024*1024; // 4.498 if 1MiB vs 4.503 if 5MiB vs 4.569 if 10MiB
 	char* const contents = reinterpret_cast<char*>(malloc(buf_sz + max_line_sz*2));
 	
-	gz_state fd;
-	fd.size = 0;            /* no buffers allocated yet */
-    fd.want = 8192*1024;    /* requested buffer size */
-    fd.msg = nullptr;       /* no error message yet */
-    fd.mode = GZ_READ;
-	fd.level = Z_DEFAULT_COMPRESSION;
-    fd.strategy = Z_DEFAULT_STRATEGY;
-    fd.direct = 1;
-	// fd.path = "[hardcoded_path_for_gzip_error_printing]";
-	fd.fd = open("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt.gz", O_RDONLY);
-	// TODO: Use sorted index.txt.gz - sort by the page TITLES then split 1000 lines each
+	gz_state& fd = pages_articles_multistream_index_txt_offsetted_gz__fd;
+	
+	const uint64_t offset_and_next_offset = get_offsets_given_title(title_requested);
+	const uint32_t offset = offset_and_next_offset >> 32;
+	const uint32_t next_offset = offset_and_next_offset & 0xffffffffu; // TODO: Unused
+	
 	if (unlikely(fd.fd == -1)){
 		write(2, "Cannot open ...index.txt.gz\n", 28);
 		return std::string_view(nullptr,0);
 	}
-	fd.start = 0;
+	fd.start = lseek(fd.fd, offset, SEEK_SET);
 	/* NOTE: Source code (gzlib.c from https://www.zlib.net/) confusing has this:
 		state->start = LSEEK(state->fd, 0, SEEK_CUR);
 		if (state->start == -1) state->start = 0;
@@ -84,14 +98,11 @@ std::string_view find_line_containing_title(const char* const title_requested){
 		memcpy(contents+buf_sz, contents, max_line_sz);
 		contents_read_into_buf = gzread(&fd, contents, buf_sz);
 		if (contents_read_into_buf <= 0)
-			break;
+			return std::string_view(nullptr,0);
 	}
 	}
-	gzclose_r(&fd);
-	return std::string_view(nullptr,0);
 	
 	found_results:
-	gzclose_r(&fd);
 	char* _end_of_line = contents + indx;
 	if (unlikely(indx < max_line_sz+1)){
 		// Possible that we need to consult previously memcpy'd buffer

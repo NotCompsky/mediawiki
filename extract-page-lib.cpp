@@ -2,6 +2,15 @@
 #include "get-byte-offset-of-page-given-title.hpp"
 
 extern "C"
+void extract_page__init(){
+	pages_articles_multistream_index_txt_offsetted_gz__init();
+}
+extern "C"
+void extract_page__deinit(){
+	pages_articles_multistream_index_txt_offsetted_gz__deinit();
+}
+
+extern "C"
 uint64_t extract_page_given_title(char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested){
 	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(title_requested));
 	if (unlikely(offset_and_pageid.pageid == nullptr))

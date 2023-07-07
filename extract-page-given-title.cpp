@@ -6,7 +6,9 @@ int main(const int argc,  const char* const* const argv){
 		write(2, "USAGE: [TITLE]\n", 15);
 		return 1;
 	}
+	pages_articles_multistream_index_txt_offsetted_gz__init();
 	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(argv[1]));
+	pages_articles_multistream_index_txt_offsetted_gz__deinit();
 	if (unlikely(offset_and_pageid.pageid == nullptr)){
 		write(2, "Cannot find offset and page_id\n", 31);
 		return 1;
