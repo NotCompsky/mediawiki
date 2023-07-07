@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <unistd.h>
 #include <fcntl.h> // for open, O_RDONLY, O_WRONLY
-#include <zlib.h>
 #include <compsky/utils/ptrdiff.hpp>
 #include <cstring> // for memcpy
 #include <string_view>
@@ -24,13 +23,10 @@ void pages_articles_multistream_index_txt_offsetted_gz__init(){
 	gz_state& fd = pages_articles_multistream_index_txt_offsetted_gz__fd;
 	fd.size = 0;            /* no buffers allocated yet */
     fd.want = 8192*1024;    /* requested buffer size */
-    fd.msg = nullptr;       /* no error message yet */
     fd.mode = GZ_READ;
-	fd.level = Z_DEFAULT_COMPRESSION;
-    fd.strategy = Z_DEFAULT_STRATEGY;
     fd.direct = 1;
-	// fd.path = "[hardcoded_path_for_gzip_error_printing]";
 	fd.fd = open("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt.offsetted.gz", O_RDONLY);
+	fd.strm.total_in = 0;
 }
 void pages_articles_multistream_index_txt_offsetted_gz__deinit(){
 	gzclose_r(&pages_articles_multistream_index_txt_offsetted_gz__fd);
@@ -50,7 +46,7 @@ std::string_view find_line_containing_title(const char* const title_requested){
 	
 	const uint64_t offset_and_next_offset = get_offsets_given_title(title_requested);
 	const uint32_t offset = offset_and_next_offset >> 32;
-	const uint32_t next_offset = offset_and_next_offset & 0xffffffffu; // TODO: Unused
+	const uint32_t module_size = offset_and_next_offset & 0xffffffffu;
 	
 	if (unlikely(fd.fd == -1)){
 		write(2, "Cannot open ...index.txt.gz\n", 28);
@@ -67,7 +63,6 @@ std::string_view find_line_containing_title(const char* const title_requested){
 			fd.eof = 0;             /* not at end of file */
 			fd.past = 0;            /* have not read past end yet */
 			fd.how = LOOK;          /* look for gzip header */
-		fd.seek = 0;                /* no seek request pending */
 		// gz_error(&fd, Z_OK, NULL);  /* clear error */
 		fd.x.pos = 0;               /* no uncompressed data yet */
 		fd.strm.avail_in = 0;       /* no input data yet */
@@ -97,7 +92,7 @@ std::string_view find_line_containing_title(const char* const title_requested){
 		
 		memcpy(contents+buf_sz, contents, max_line_sz);
 		contents_read_into_buf = gzread(&fd, contents, buf_sz);
-		if (contents_read_into_buf <= 0)
+		if ((contents_read_into_buf <= 0) or (fd.strm.total_in >= module_size))
 			return std::string_view(nullptr,0);
 	}
 	}

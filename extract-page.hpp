@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <unistd.h>
 #include <fcntl.h> // for open, O_RDONLY, O_WRONLY
-#include <zlib.h>
 #include <compsky/utils/ptrdiff.hpp>
 #include <vector>
 #include <cstring> // for memcpy

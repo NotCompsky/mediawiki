@@ -1,3 +1,5 @@
+#include <zlib.h> // for gzFile_s and z_stream
+
 /* from gzguts.h from https://www.zlib.net/ */
 #define GZ_READ 7247
 #define GZIP 2 
@@ -13,7 +15,7 @@ constexpr int LOOK = 0;  /* from gzguts.h from https://www.zlib.net/ */
 
 /* from gzguts.h from https://www.zlib.net/
 /* internal gzip file state data structure */
-typedef struct {
+struct gz_state {
         /* exposed contents for gzgetc() macro */
     struct gzFile_s x;      /* "x" for exposed */
                             /* x.have: number of bytes available at x.next */
@@ -22,7 +24,6 @@ typedef struct {
         /* used for both reading and writing */
     int mode;               /* see gzip modes above */
     int fd;                 /* file descriptor */
-    char *path;             /* path or fd for error messages */
     unsigned size;          /* buffer size, zero if not allocated yet */
     unsigned want;          /* requested buffer size, default is GZBUFSIZE */
     unsigned char *in;      /* input buffer (double-sized when writing) */
@@ -34,18 +35,12 @@ typedef struct {
     int eof;                /* true if end of input file reached */
     int past;               /* true if read requested past end */
         /* just for writing */
-    int level;              /* compression level */
-    int strategy;           /* compression strategy */
     int reset;              /* true if a reset is pending after a Z_FINISH */
-        /* seek request */
-    z_off64_t skip;         /* amount to skip (already rewound if backwards) */
-    int seek;               /* true if seek request pending */
         /* error information */
     int err;                /* error code */
-    char *msg;              /* error message */
         /* zlib inflate or deflate stream */
     z_stream strm;          /* stream structure in-place (not a pointer) */
-} gz_state;
+};
 
 
 
@@ -217,8 +212,7 @@ int gz_decomp(
             return -1;
         }
         if (ret == Z_DATA_ERROR) {              /* deflate stream invalid */
-            gz_error(state, Z_DATA_ERROR,
-                     strm->msg == NULL ? "compressed data error" : strm->msg);
+            gz_error(state, Z_DATA_ERROR, "compressed data error");
             return -1;
         }
     } while (strm->avail_out && ret != Z_STREAM_END);
@@ -254,36 +248,6 @@ int gz_fetch(
     } while (state->x.have == 0 && (!state->eof || strm->avail_in));
     return 0;
 }
-int gz_skip( /* unmodified, except for linting of parameters, gz_statep->gz_state* and removal of preceding 'local' */
-    gz_state* state,
-    z_off64_t len
-){
-    unsigned n;
-
-    /* skip over len bytes or reach end-of-file, whichever comes first */
-    while (len)
-        /* skip over whatever is in output buffer */
-        if (state->x.have) {
-            n = GT_OFF(state->x.have) || (z_off64_t)state->x.have > len ?
-                (unsigned)len : state->x.have;
-            state->x.have -= n;
-            state->x.next += n;
-            state->x.pos += n;
-            len -= n;
-        }
-
-        /* output buffer empty -- return if we're at the end of the input */
-        else if (state->eof && state->strm.avail_in == 0)
-            break;
-
-        /* need more data to skip -- load up output buffer */
-        else {
-            /* get more output, looking for header if required */
-            if (gz_fetch(state) == -1)
-                return -1;
-        }
-    return 0;
-}
 z_size_t gz_read( /* unmodified, except for linting of parameters, gz_statep->gz_state* and removal of preceding 'local' and removal of 'COPY' path */
     gz_state* state,
     voidp buf,
@@ -295,13 +259,6 @@ z_size_t gz_read( /* unmodified, except for linting of parameters, gz_statep->gz
     /* if len is zero, avoid unnecessary operations */
     if (len == 0)
         return 0;
-
-    /* process a skip request */
-    if (state->seek) {
-        state->seek = 0;
-        if (gz_skip(state, state->skip) == -1)
-            return 0;
-    }
 
     /* get len bytes to buf, or less than len if at the end */
     got = 0;
