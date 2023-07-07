@@ -44,7 +44,8 @@ int main(const int argc,  const char* const* const argv){
 		return 1;
 	}
 	
-	const std::string_view errstr(process_file(searching_for_pageid__at, init_offset_bytes, nullptr, extract_as_html));
+	char* const output_buf = reinterpret_cast<char*>(malloc(1024*1024*10));
+	const std::string_view errstr(process_file(output_buf, searching_for_pageid__at, init_offset_bytes, nullptr, extract_as_html));
 	if (unlikely(errstr.data()[0] == '\0')){
 		write(2, errstr.data()+1, errstr.size()-1);
 		return 1;

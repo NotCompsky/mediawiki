@@ -1,6 +1,11 @@
 #include "extract-page.hpp"
 #include "get-byte-offset-of-page-given-title.hpp"
 
+static char title_str_buf[1+255+1];
+constexpr std::size_t buf_sz = 1024*1024;
+static char* const gz_contents_buf = reinterpret_cast<char*>(malloc(buf_sz + get_byte_offset_of_page_given_title::max_line_sz*2));
+static char* const html_output_buf = reinterpret_cast<char*>(malloc(1024*1024*10));
+
 extern "C"
 void extract_page__init(){
 	pages_articles_multistream_index_txt_offsetted_gz__init();
@@ -12,10 +17,19 @@ void extract_page__deinit(){
 
 extern "C"
 uint64_t extract_page_given_title(char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested){
-	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(title_requested));
+	{
+		constexpr std::string_view _msg("extract_page_given_title: ");
+		char _buf[_msg.size()+255+1];
+		memcpy(_buf, _msg.data(), _msg.size());
+		memcpy(_buf+_msg.size(), title_requested, strlen(title_requested));
+		_buf[_msg.size()+strlen(title_requested)] = '\n';
+		write(2, _buf, _msg.size()+strlen(title_requested)+1);
+	}
+	
+	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(title_requested, gz_contents_buf,buf_sz, title_str_buf));
 	if (unlikely(offset_and_pageid.pageid == nullptr))
 		return 0;
-	const std::string_view errstr(process_file(offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, true));
+	const std::string_view errstr(process_file(html_output_buf, offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, true));
 	if (unlikely(errstr.data()[0] == '\0')){
 		write(2, errstr.data(), errstr.size());
 		return 0;
@@ -26,10 +40,10 @@ uint64_t extract_page_given_title(char* const output_buf,  uint32_t* const all_c
 
 extern "C"
 uint64_t extract_raw_page_given_title(char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested){
-	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(title_requested));
+	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(title_requested, gz_contents_buf,buf_sz, title_str_buf));
 	if (unlikely(offset_and_pageid.pageid == nullptr))
 		return 0;
-	const std::string_view errstr(process_file(offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, false));
+	const std::string_view errstr(process_file(html_output_buf, offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, false));
 	if (unlikely(errstr.data()[0] == '\0')){
 		write(2, errstr.data(), errstr.size());
 		return 0;

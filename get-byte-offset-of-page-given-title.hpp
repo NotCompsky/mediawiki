@@ -15,7 +15,9 @@
 #include "pages-articles-multistream-index.index.hpp"
 
 
-constexpr std::size_t max_line_sz = 19+1+10+1+255;
+namespace get_byte_offset_of_page_given_title {
+	constexpr std::size_t max_line_sz = 19+1+10+1+255;
+}
 
 static gz_state pages_articles_multistream_index_txt_offsetted_gz__fd;
 
@@ -32,15 +34,20 @@ void pages_articles_multistream_index_txt_offsetted_gz__deinit(){
 	gzclose_r(&pages_articles_multistream_index_txt_offsetted_gz__fd);
 }
 
-std::string_view find_line_containing_title(const char* const title_requested){
-	char* const title_str = reinterpret_cast<char*>(malloc(1+strlen(title_requested)+1));
-	title_str[0] = ':';
-	memcpy(title_str+1, title_requested, strlen(title_requested));
-	title_str[1+strlen(title_requested)] = '\n';
-	const char* title_itr = title_str;
+std::string_view find_line_containing_title(const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf){
+	using get_byte_offset_of_page_given_title::max_line_sz;
 	
-	constexpr std::size_t buf_sz = 1024*1024; // 4.498 if 1MiB vs 4.503 if 5MiB vs 4.569 if 10MiB
-	char* const contents = reinterpret_cast<char*>(malloc(buf_sz + max_line_sz*2));
+	if (unlikely(strlen(title_requested) > 255)){
+		write(2, "Title too long\n", 15);
+		return std::string_view(nullptr,0);
+	}
+	title_str_buf[0] = ':';
+	memcpy(title_str_buf+1, title_requested, strlen(title_requested));
+	title_str_buf[1+strlen(title_requested)] = '\n';
+	const char* title_itr = title_str_buf;
+	
+	const std::size_t buf_sz = gz_contents_buf_sz; // 4.498s if 1MiB vs 4.503s if 5MiB vs 4.569s if 10MiB
+	char* const contents = gz_contents_buf;
 	
 	gz_state& fd = pages_articles_multistream_index_txt_offsetted_gz__fd;
 	
@@ -86,7 +93,7 @@ std::string_view find_line_containing_title(const char* const title_requested){
 					goto found_results;
 				++title_itr;
 			} else {
-				title_itr = title_str;
+				title_itr = title_str_buf;
 			}
 		}
 		
@@ -111,8 +118,8 @@ std::string_view find_line_containing_title(const char* const title_requested){
 	return std::string_view(_itr, compsky::utils::ptrdiff(_end_of_line,_itr)+1);
 }
 
-off_t get_byte_offset_given_title(const char* const title_requested){
-	const std::string_view res = find_line_containing_title(title_requested);
+off_t get_byte_offset_given_title(const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf){
+	const std::string_view res = find_line_containing_title(title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf);
 	if (res.size() == 0)
 		return -1;
 	const char* itr = res.data();
@@ -132,8 +139,8 @@ struct OffsetAndPageid {
 	, pageid(_pageid)
 	{}
 };
-OffsetAndPageid get_byte_offset_and_pageid_given_title(const char* const title_requested){
-	const std::string_view res = find_line_containing_title(title_requested);
+OffsetAndPageid get_byte_offset_and_pageid_given_title(const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf){
+	const std::string_view res = find_line_containing_title(title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf);
 	if (res.size() == 0)
 		return OffsetAndPageid(-1, nullptr);
 	const char* itr = res.data();

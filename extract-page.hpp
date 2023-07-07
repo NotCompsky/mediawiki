@@ -40,7 +40,7 @@ struct IndxAndUrlOffset {
 	{}
 };
 
-std::string_view process_file(const char* searching_for_pageid__as_str,  const off_t init_offset_bytes,  uint32_t* all_citation_urls,  const bool extract_as_html){
+std::string_view process_file(char* const output_buf,  const char* searching_for_pageid__as_str,  const off_t init_offset_bytes,  uint32_t* all_citation_urls,  const bool extract_as_html){
 	char searching_for_pageid__buf[4+10+5+1];
 	char* searching_for_pageid = searching_for_pageid__buf;
 	{
@@ -92,7 +92,6 @@ std::string_view process_file(const char* searching_for_pageid__as_str,  const o
 	bool found_pageid = false;
 	bool found_pageid_start = false;
 	bool success = false;
-	char* const output_buf = reinterpret_cast<char*>(malloc(1024*1024 * 2));
 	char* output_itr = output_buf - 1;
 	const char* searching_for_pageend = searching_for_pageend__buf;
 	const char* searching_for_pageid_start = searching_for_pageid_start__buf;
