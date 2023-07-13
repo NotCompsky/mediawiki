@@ -27,14 +27,14 @@ void pages_articles_multistream_index_txt_offsetted_gz__init(){
     fd.want = 8192*1024;    /* requested buffer size */
     fd.mode = GZ_READ;
     fd.direct = 1;
-	fd.fd = open("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt.offsetted.gz", O_RDONLY);
 	fd.strm.total_in = 0;
+	fd.x.have = 0;
 }
 void pages_articles_multistream_index_txt_offsetted_gz__deinit(){
 	gzclose_r(&pages_articles_multistream_index_txt_offsetted_gz__fd);
 }
 
-std::string_view find_line_containing_title(const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf){
+std::string_view find_line_containing_title(const int _fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
 	using get_byte_offset_of_page_given_title::max_line_sz;
 	
 	if (unlikely(strlen(title_requested) > 255)){
@@ -46,20 +46,22 @@ std::string_view find_line_containing_title(const char* const title_requested,  
 	title_str_buf[1+strlen(title_requested)] = '\n';
 	const char* title_itr = title_str_buf;
 	
-	const std::size_t buf_sz = gz_contents_buf_sz; // 4.498s if 1MiB vs 4.503s if 5MiB vs 4.569s if 10MiB
-	char* const contents = gz_contents_buf;
+	const std::size_t buf_sz = gz_contents_buf_sz - 1; // 4.498s if 1MiB vs 4.503s if 5MiB vs 4.569s if 10MiB
+	char* const contents = gz_contents_buf + 1;
+	gz_contents_buf[0] = '\n'; // To ensure first entry works
 	
 	gz_state& fd = pages_articles_multistream_index_txt_offsetted_gz__fd;
 	
-	const uint64_t offset_and_next_offset = get_offsets_given_title(title_requested);
-	const uint32_t offset = offset_and_next_offset >> 32;
-	const uint32_t module_size = offset_and_next_offset & 0xffffffffu;
-	
-	if (unlikely(fd.fd == -1)){
-		write(2, "Cannot open ...index.txt.gz\n", 28);
-		return std::string_view(nullptr,0);
+	off64_t offset = 0;
+	int module_size = INT_MAX;
+	if (is_wikipedia){
+		const uint64_t offset_and_next_offset = get_offsets_given_title(title_requested);
+		offset      = offset_and_next_offset >> 32;
+		module_size = offset_and_next_offset & 0xffffffffu;
 	}
-	fd.start = lseek(fd.fd, offset, SEEK_SET);
+	
+	fd.fd = _fd;
+	fd.start = lseek64(fd.fd, offset, SEEK_SET);
 	/* NOTE: Source code (gzlib.c from https://www.zlib.net/) confusing has this:
 		state->start = LSEEK(state->fd, 0, SEEK_CUR);
 		if (state->start == -1) state->start = 0;
@@ -118,8 +120,8 @@ std::string_view find_line_containing_title(const char* const title_requested,  
 	return std::string_view(_itr, compsky::utils::ptrdiff(_end_of_line,_itr)+1);
 }
 
-off_t get_byte_offset_given_title(const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf){
-	const std::string_view res = find_line_containing_title(title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf);
+off_t get_byte_offset_given_title(const int fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
+	const std::string_view res = find_line_containing_title(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia);
 	if (res.size() == 0)
 		return -1;
 	const char* itr = res.data();
@@ -139,8 +141,8 @@ struct OffsetAndPageid {
 	, pageid(_pageid)
 	{}
 };
-OffsetAndPageid get_byte_offset_and_pageid_given_title(const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf){
-	const std::string_view res = find_line_containing_title(title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf);
+OffsetAndPageid get_byte_offset_and_pageid_given_title(const int fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
+	const std::string_view res = find_line_containing_title(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia);
 	if (res.size() == 0)
 		return OffsetAndPageid(-1, nullptr);
 	const char* itr = res.data();

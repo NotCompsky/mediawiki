@@ -16,8 +16,13 @@ void extract_page__deinit(){
 }
 
 extern "C"
-uint64_t extract_page_given_title(char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested){
-	{
+int open_file(const char* const filepath){
+	return open(filepath, O_RDONLY);
+}
+
+extern "C"
+uint64_t extract_page_given_title(const int archive_fd,  const int archiveindices_fd,  char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested,  const int is_wikipedia){
+	/*{
 		constexpr std::string_view _msg("extract_page_given_title: ");
 		char _buf[_msg.size()+255+1];
 		memcpy(_buf, _msg.data(), _msg.size());
@@ -25,11 +30,11 @@ uint64_t extract_page_given_title(char* const output_buf,  uint32_t* const all_c
 		_buf[_msg.size()+strlen(title_requested)] = '\n';
 		write(2, _buf, _msg.size()+strlen(title_requested)+1);
 	}
-	
-	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(title_requested, gz_contents_buf,buf_sz, title_str_buf));
+	*/
+	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(archiveindices_fd, title_requested, gz_contents_buf,buf_sz, title_str_buf, is_wikipedia));
 	if (unlikely(offset_and_pageid.pageid == nullptr))
 		return 0;
-	const std::string_view errstr(process_file(html_output_buf, offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, true));
+	const std::string_view errstr(process_file(archive_fd, html_output_buf, offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, true));
 	if (unlikely(errstr.data()[0] == '\0')){
 		write(2, errstr.data(), errstr.size());
 		return 0;
@@ -39,11 +44,11 @@ uint64_t extract_page_given_title(char* const output_buf,  uint32_t* const all_c
 }
 
 extern "C"
-uint64_t extract_raw_page_given_title(char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested){
-	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(title_requested, gz_contents_buf,buf_sz, title_str_buf));
+uint64_t extract_raw_page_given_title(const int archive_fd,  const int archiveindices_fd,  char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested,  const int is_wikipedia){
+	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(archiveindices_fd, title_requested, gz_contents_buf,buf_sz, title_str_buf, is_wikipedia));
 	if (unlikely(offset_and_pageid.pageid == nullptr))
 		return 0;
-	const std::string_view errstr(process_file(html_output_buf, offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, false));
+	const std::string_view errstr(process_file(archive_fd, html_output_buf, offset_and_pageid.pageid, offset_and_pageid.offset, all_citation_urls, false));
 	if (unlikely(errstr.data()[0] == '\0')){
 		write(2, errstr.data(), errstr.size());
 		return 0;

@@ -45,7 +45,7 @@ struct IndxAndUrlOffset {
 	{}
 };
 
-std::string_view process_file(char* const output_buf,  const char* searching_for_pageid__as_str,  const off_t init_offset_bytes,  uint32_t* all_citation_urls,  const bool extract_as_html){
+std::string_view process_file(const int compressed_fd,  char* const output_buf,  const char* searching_for_pageid__as_str,  const off_t init_offset_bytes,  uint32_t* all_citation_urls,  const bool extract_as_html){
 	using namespace extract_page_details;
 	
 	char searching_for_pageid__buf[4+10+5+1];
@@ -67,10 +67,6 @@ std::string_view process_file(char* const output_buf,  const char* searching_for
 	
 	char* const contents = reinterpret_cast<char*>(malloc(buf_sz));
 	
-	const int compressed_fd = open("/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream.xml.bz2", O_RDONLY);
-	if (unlikely(compressed_fd == 0)){
-		return "\0ERROR: open()\n";
-	}
 	bz_stream fd;
 	memset(&fd, 0, sizeof(fd));
 	char* const buf1 = reinterpret_cast<char*>(malloc(buf1_sz));
@@ -1006,6 +1002,9 @@ std::string_view process_file(char* const output_buf,  const char* searching_for
 		if (fd.avail_in == 0){
 			fd.next_in = buf1;
 			fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
+			if (unlikely(fd.avail_in == 0)){
+				return "\0ERROR: Reached end of file?\n";
+			}
 		}
 		bz2_decompress_rc = BZ2_bzDecompress(&fd);
 		if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
@@ -1016,7 +1015,6 @@ std::string_view process_file(char* const output_buf,  const char* searching_for
 	finish_extraction:
 	
 	BZ2_bzDecompressEnd(&fd);
-	close(compressed_fd);
 	
 	return std::string_view(_start_of_this_page, _start_of_this_page_sz);
 }

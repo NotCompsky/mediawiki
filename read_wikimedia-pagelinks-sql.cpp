@@ -165,8 +165,10 @@ void add_pageidorname(PageIDOrName1* save_into_compressed_form__end,  PageIDOrNa
 
 int main(const int argc,  const char* const* const argv){
 	constexpr std::string_view usage_str =
-		"USAGE: [[OPTIONS]] [[PAGE_TITLES]]?\n"
+		"USAGE: [FILEPATH] [[OPTIONS]] [[PAGE_TITLES]]?\n"
 		"\n"
+		"FILEPATH\n"
+		"	Must be gzipped - either a SQL dump or the 'compressed' version produced by '-w' option\n"
 		"OPTIONS\n"
 		"	--\n"
 		"		End of options\n"
@@ -193,7 +195,7 @@ int main(const int argc,  const char* const* const argv){
 		"		Saves ALL entries (not just matching entries) into compressed form\n"
 		"	-c\n"
 		"		Read entries from compressed form (much faster) instead of the SQL dump\n"
-		"		Reads from: /media/vangelic/DATA/dataset/wikipedia/pagelinks.obj.gz\n"
+		"		Reads from [FILEPATH]\n"
 		"PAGE_TITLES\n"
 		"	List links TO these titles\n"
 		"	Underscores_instead_of_spaces\n"
@@ -210,7 +212,7 @@ int main(const int argc,  const char* const* const argv){
 	char* entries_from_file__which_have_no_pageids__strbuf;
 	std::size_t entries_from_file__which_have_no_pageids__strbuf_sz = 1;
 	
-	for (unsigned i = 1;  i < argc;  ++i){
+	for (unsigned i = 2;  i < argc;  ++i){
 		entries_from_file__which_have_no_pageids__strbuf_sz += strlen(argv[i]);
 	}
 	entries_from_file__which_have_no_pageids__strbuf = reinterpret_cast<char*>(malloc(entries_from_file__which_have_no_pageids__strbuf_sz));
@@ -228,7 +230,7 @@ int main(const int argc,  const char* const* const argv){
 	
 	{
 		unsigned i;
-		for (i = 1;  i < argc;  ++i){
+		for (i = 2;  i < argc;  ++i){
 			const char* const arg = argv[i];
 			if (unlikely((arg[0] == '-') and (arg[1] == '-') and (arg[2] == 0))){
 				++i;
@@ -391,12 +393,7 @@ int main(const int argc,  const char* const* const argv){
 	
 	const bool is_using_sql_dump_file = (compressed_form__write_to_fp == nullptr) and (not read_from_compressed_form);
 	
-	const gzFile fd = gzopen(
-		read_from_compressed_form
-		? "/media/vangelic/DATA/dataset/wikipedia/pagelinks.obj.gz"
-		: "/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pagelinks.sql.gz",
-		"rb"
-	);
+	const gzFile fd = gzopen(argv[1], "rb");
 	
 	if (is_using_sql_dump_file){ // Read from SQL dump
 		std::size_t contents_read_into_buf;
