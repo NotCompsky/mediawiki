@@ -54,7 +54,7 @@ uint64_t extract_raw_page_given_title(char* const output_buf,  uint32_t* const a
 
 
 
-#include "read_wikimedia-page-sql.hpp"
+#include "read_wikimedia-page-quickmetadata.hpp"
 
 extern "C"
 uint64_t get_all_pages_of_interest_as_html(char* const output_buf,  const char* const filename){

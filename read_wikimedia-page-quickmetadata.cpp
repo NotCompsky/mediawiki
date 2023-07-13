@@ -11,7 +11,7 @@
 #include <cstring> // for memcpy
 #include <string_view>
 #include <compsky/asciify/asciify.hpp>
-#include "read_wikimedia-page-sql.hpp"
+#include "read_wikimedia-page-quickmetadata.hpp"
 
 #ifdef USE_BZIP2
 # define BZ_NO_STDIO // restricts bzip2 library
@@ -36,7 +36,10 @@ int main(const int argc,  const char* const* const argv){
 	using namespace wikipedia::page;
 	
 	constexpr std::string_view usage_str =
-		"USAGE: [[OPTIONS]]\n"
+		"USAGE: [FILEPATH] [[OPTIONS]]\n"
+		"\n"
+		"FILEPATH\n"
+		"	Path to pages-articles-multistream-index.txt.(gz|bz2)\n"
 		"\n"
 		"OPTIONS\n"
 		"	-f [FILENAME]\n"
@@ -52,13 +55,7 @@ int main(const int argc,  const char* const* const argv){
 	constexpr std::size_t buf_sz = 1024*1024 * 10;
 	char* const contents = reinterpret_cast<char*>(malloc(buf_sz));
 	
-	const char* const filepath = "/media/vangelic/DATA/dataset/wikipedia/enwiki-20230620-pages-articles-multistream-index.txt."
-#ifdef USE_BZIP2
-		"bz2"
-#else
-		"gz"
-#endif
-	;
+	const char* const filepath = argv[1];
 	
 #ifdef USE_BZIP2
 	const int compressed_fd = open(filepath, O_RDONLY);
@@ -89,7 +86,7 @@ int main(const int argc,  const char* const* const argv){
 	const gzFile fd = gzopen(filepath, "rb");
 #endif
 	
-	for (unsigned i = 1;  i < argc;  ++i){
+	for (unsigned i = 2;  i < argc;  ++i){
 		const char* const arg = argv[i];
 		bool is_bad_arg = true;
 		if ((arg[0] == '-') and (arg[2] == 0)){
@@ -148,6 +145,15 @@ int main(const int argc,  const char* const* const argv){
 		return 0;
 	}
 	
+	EntryIndirect* const entries_from_file__original_order = reinterpret_cast<EntryIndirect*>(malloc(sizeof(EntryIndirect)*entries_from_file__original_order.size()));
+	memcpy(entries_from_file__original_order, entries_from_file.data(), sizeof(EntryIndirect)*entries_from_file__original_order.size());
+	std::sort(
+		entries_from_file,
+		entries_from_file+entries_from_file.size(),
+		[](const EntryIndirect& a,  const EntryIndirect& b){
+			return (a.pl_pageid > b.pl_pageid);
+		}
+	);
 	{
 		unsigned n_entries_without_titles = 0;
 		for (EntryIndirect& x : entries_from_file){

@@ -12,7 +12,7 @@
 #include <cstring> // for memcpy
 #include <string_view>
 #include <compsky/asciify/asciify.hpp>
-#include "read_wikimedia-page-sql.hpp"
+#include "read_wikimedia-page-quickmetadata.hpp"
 #define BZ_NO_STDIO // restricts bzip2 library
 #include <bzlib.h>
 

@@ -11,7 +11,7 @@
 #include <string_view>
 #include <compsky/asciify/asciify.hpp>
 #include <compsky/os/metadata.hpp>
-#include "read_wikimedia-page-sql.hpp"
+#include "read_wikimedia-page-quickmetadata.hpp"
 #include "fast-pagelinks.hpp"
 
 constexpr size_t initial_offset =
