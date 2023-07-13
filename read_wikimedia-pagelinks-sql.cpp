@@ -85,11 +85,14 @@ bool in_list(char* const entries_from_file__which_have_no_pageids__strbuf,  cons
 }
 
 
-void errandexit(const char* const errstr, const char* const buf,  const unsigned i){
+void errnoexit(const char* const errstr, const char* const buf,  const unsigned i){
 	fprintf(stderr, "ERROR: %s\n", errstr);
 	fprintf(stderr, "       Previous 300 chars: %.100s\n", buf+((i>300)?i:300)-300);
 	fprintf(stderr, "       This char: %c\n", buf[i]);
 	fprintf(stderr, "       Next     10  chars: %.10s\n",  buf+i);
+}
+void errandexit(const char* const errstr, const char* const buf,  const unsigned i){
+	errnoexit(errstr, buf, i);
 	fflush(stdout);
 	fflush(stderr);
 	abort();
@@ -537,7 +540,9 @@ int main(const int argc,  const char* const* const argv){
 								which_field_currently_parsing = 0;
 								number_of_single_quotes = 0;
 							} else {
-								errandexit("Unexpected char when reached_end_of_sql_statement is true", contents, i);
+								errnoexit("Unexpected char when reached_end_of_sql_statement is true - assuming this is end of SQL dump", contents, i);
+								goto reached_end_of_dump;
+								// TODO: fix this (it correctly leaves at end of SQL dump, but why here and not at c=='/'?)
 							}
 							// End of SQL statement - usually a new one afterwards
 						} else if (c == '/'){
@@ -621,6 +626,15 @@ int main(const int argc,  const char* const* const argv){
 	}
 	
 	reached_end_of_dump:
+	
+	if (compressed_form__write_to_fp != nullptr){
+		if (likely(save_into_compressed_form__itr != compressed_form__buf)){
+			const std::size_t n_bytes = compsky::utils::ptrdiff((void*)save_into_compressed_form__itr, (void*)compressed_form__buf);
+			if (unlikely(write(compressed_form__fd, reinterpret_cast<char*>(compressed_form__buf), n_bytes) != n_bytes)){
+				write(2, "ERROR: Failed to write last few bytes\n", 38);
+			}
+		}
+	}
 	
 	if (entries_from_file__which_have_no_pageids__strbuf_sz != 1)
 		free(entries_from_file__which_have_no_pageids__strbuf);

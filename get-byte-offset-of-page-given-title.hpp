@@ -83,7 +83,8 @@ std::string_view find_line_containing_title(const int _fd,  const char* const ti
 	
 	int contents_read_into_buf = gzread(&fd, contents, buf_sz);
 	unsigned indx;
-	if (likely(contents_read_into_buf != -1)){
+	bool found_in_first_read = true;
+	if (likely(contents_read_into_buf > 0)){
 	
 	memset(contents+buf_sz, 0, max_line_sz);
 	
@@ -99,16 +100,23 @@ std::string_view find_line_containing_title(const int _fd,  const char* const ti
 			}
 		}
 		
+		found_in_first_read = false;
+		module_size -= contents_read_into_buf;
+		
 		memcpy(contents+buf_sz, contents, max_line_sz);
 		contents_read_into_buf = gzread(&fd, contents, buf_sz);
-		if ((contents_read_into_buf <= 0) or (fd.strm.total_in >= module_size))
+		if ((contents_read_into_buf <= 0) or (module_size <= 0)){
 			return std::string_view(nullptr,0);
+		}
 	}
+	} else {
+		write(2, "Read 0 bytes from gzread\n", 25);
+		return std::string_view(nullptr,0);
 	}
 	
 	found_results:
 	char* _end_of_line = contents + indx;
-	if (unlikely(indx < max_line_sz+1)){
+	if ((unlikely(indx < max_line_sz+1)) and (not found_in_first_read)){
 		// Possible that we need to consult previously memcpy'd buffer
 		memcpy(contents+buf_sz+max_line_sz, contents, indx);
 		_end_of_line = contents+buf_sz+max_line_sz + indx;
@@ -129,6 +137,7 @@ off_t get_byte_offset_given_title(const int fd,  const char* const title_request
 	while(*itr != ':'){
 		offset *= 10;
 		offset += *itr - '0';
+		++itr;
 	}
 	return offset;
 }

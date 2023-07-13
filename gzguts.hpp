@@ -285,7 +285,7 @@ z_size_t gz_read( /* unmodified, except for linting of parameters, gz_statep->gz
 
         /* need output data -- for small len or new stream load up our output
            buffer */
-        else if ((likely(state->how == LOOK)) || n < (state->size << 1)) {
+        else if ((state->how == LOOK) || n < (state->size << 1)) {
             /* get more output, looking for header if required */
             if (gz_fetch(state) == -1)
                 return 0;
