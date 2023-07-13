@@ -15,6 +15,8 @@
 #include "pages-articles-multistream-index.index.hpp"
 
 
+#define GZBUFSIZE 8192 // As defined in gzguts.h from zlib - reading the source code, it seems almost all decompression is directly into the user-chosen buffer, not this buffer (fd.want's buffer) - (fd.want's buffer) is used for small reads and for the initial 'LOOK' (determining if a file is GZIP)
+
 namespace get_byte_offset_of_page_given_title {
 	constexpr std::size_t max_line_sz = 19+1+10+1+255;
 }
@@ -24,7 +26,7 @@ static gz_state pages_articles_multistream_index_txt_offsetted_gz__fd;
 void pages_articles_multistream_index_txt_offsetted_gz__init(){
 	gz_state& fd = pages_articles_multistream_index_txt_offsetted_gz__fd;
 	fd.size = 0;            /* no buffers allocated yet */
-    fd.want = 8192*1024;    /* requested buffer size */
+    fd.want = GZBUFSIZE;    /* requested buffer size */
     fd.mode = GZ_READ;
     fd.direct = 1;
 	fd.strm.total_in = 0;
