@@ -28,7 +28,7 @@ int main(const int argc,  const char* const* const argv){
 	char title_str_buf[1+255+1];
 	constexpr std::size_t buf_sz = 1024*1024;
 	char* const contents = reinterpret_cast<char*>(malloc(buf_sz + get_byte_offset_of_page_given_title::max_line_sz*2));
-	const std::string_view result = find_line_containing_title(fd, argv[2], contents,buf_sz, title_str_buf, is_wikipedia);
+	const std::string_view result = find_line_containing_title(fd, argv[2], contents,buf_sz, title_str_buf, is_wikipedia, true);
 	pages_articles_multistream_index_txt_offsetted_gz__deinit();
 	write(1, result.data(), result.size());
 	
