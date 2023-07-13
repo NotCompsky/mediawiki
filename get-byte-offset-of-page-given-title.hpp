@@ -36,7 +36,8 @@ void pages_articles_multistream_index_txt_offsetted_gz__deinit(){
 	gzclose_r(&pages_articles_multistream_index_txt_offsetted_gz__fd);
 }
 
-std::string_view find_line_containing_title(const int _fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* title_str_buf,  const bool is_wikipedia,  const bool must_be_exact_match){
+template<bool must_be_exact_match>
+std::string_view find_line_containing_title(const int _fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* title_str_buf,  const bool is_wikipedia){
 	using get_byte_offset_of_page_given_title::max_line_sz;
 	
 	if (unlikely(strlen(title_requested) > 255)){
@@ -46,7 +47,7 @@ std::string_view find_line_containing_title(const int _fd,  const char* const ti
 	memcpy(title_str_buf+1, title_requested, strlen(title_requested));
 	char* const title_str_buf__end = title_str_buf+1 + strlen(title_requested) - 1;
 	const char* title_itr = title_str_buf;
-	if (must_be_exact_match){
+	if constexpr (must_be_exact_match){
 		title_str_buf[0] = ':';
 		++title_str_buf__end;
 		*title_str_buf__end = '\n';
@@ -137,7 +138,7 @@ std::string_view find_line_containing_title(const int _fd,  const char* const ti
 }
 
 off_t get_byte_offset_given_title(const int fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
-	const std::string_view res = find_line_containing_title(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia, true);
+	const std::string_view res = find_line_containing_title<true>(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia);
 	if (res.size() == 0)
 		return -1;
 	const char* itr = res.data();
@@ -159,7 +160,7 @@ struct OffsetAndPageid {
 	{}
 };
 OffsetAndPageid get_byte_offset_and_pageid_given_title(const int fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
-	const std::string_view res = find_line_containing_title(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia, true);
+	const std::string_view res = find_line_containing_title<true>(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia);
 	if (res.size() == 0)
 		return OffsetAndPageid(-1, nullptr);
 	const char* itr = res.data();
