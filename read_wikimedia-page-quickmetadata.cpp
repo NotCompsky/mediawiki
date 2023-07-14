@@ -133,15 +133,17 @@ int main(const int argc,  const char* const* const argv){
 		return 1;
 	}
 	if (list_all_pageids_and_exit){
-		char* const _buf = reinterpret_cast<char*>(malloc(entries_from_file.size()*(10+1)+1));
-		char* _itr = _buf;
-		for (const EntryIndirect& entry : entries_from_file){
-			if (entry.pl_pageid != 0)
-				compsky::asciify::asciify(_itr, entry.pl_pageid, ',');
+		if (likely(entries_from_file.size() != 0)){
+			char* const _buf = reinterpret_cast<char*>(malloc(entries_from_file.size()*(10+1)+1));
+			char* _itr = _buf;
+			for (const EntryIndirect& entry : entries_from_file){
+				if (entry.pl_pageid != 0)
+					compsky::asciify::asciify(_itr, entry.pl_pageid, ',');
+			}
+			_itr[-1] = '\n';
+			write(1, _buf, compsky::utils::ptrdiff(_itr,_buf));
+			free(_buf);
 		}
-		_itr[-1] = '\n';
-		write(1, _buf, compsky::utils::ptrdiff(_itr,_buf));
-		free(_buf);
 		return 0;
 	}
 	
