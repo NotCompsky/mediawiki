@@ -265,7 +265,6 @@ int main(const int argc,  const char* const* const argv){
 			}
 		}
 		
-		break2:
 #ifdef USE_BZIP2
 		if (bz2_decompress_rc == BZ_STREAM_END)
 			break;
@@ -289,6 +288,7 @@ int main(const int argc,  const char* const* const argv){
 #endif
 	}
 	
+	break2:
 #ifdef USE_BZIP2
 	BZ2_bzDecompressEnd(&fd);
 	close(compressed_fd);
