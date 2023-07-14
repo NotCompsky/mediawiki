@@ -1,7 +1,7 @@
-default: ~/bin/wiki_getquickpagemetadata ~/bin/wiki_pagelinks ~/bin/wiki_extract-page-given-id ~/bin/wiki_extract-page-given-title ~/bin/wiki_get-byte-offset-given-title ~/lib/extract-page.so
+default: ~/bin/wiki_getquickpagemetadata2 ~/bin/wiki_pagelinks ~/bin/wiki_extract-page-given-id ~/bin/wiki_extract-page-given-title ~/bin/wiki_get-byte-offset-given-title ~/lib/extract-page.so
 
-~/bin/wiki_getquickpagemetadata:
-	c++ -std=c++20 -O3 read_wikimedia-page-quickmetadata.cpp -o ~/bin/wiki_getquickpagemetadata -lbz2 -lz
+~/bin/wiki_getquickpagemetadata2:
+	c++ -std=c++20 -O3 read_wikimedia-page-quickmetadata.cpp -o ~/bin/wiki_getquickpagemetadata2 -lbz2 -lz
 
 ~/bin/wiki_pagelinks:
 	c++ -std=c++20 -O3 read_wikimedia-pagelinks-sql.cpp -o ~/bin/wiki_pagelinks -lz -march=native

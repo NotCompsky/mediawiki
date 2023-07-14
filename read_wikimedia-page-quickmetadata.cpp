@@ -145,15 +145,16 @@ int main(const int argc,  const char* const* const argv){
 		return 0;
 	}
 	
-	EntryIndirect* const entries_from_file__original_order = reinterpret_cast<EntryIndirect*>(malloc(sizeof(EntryIndirect)*entries_from_file__original_order.size()));
-	memcpy(entries_from_file__original_order, entries_from_file.data(), sizeof(EntryIndirect)*entries_from_file__original_order.size());
+	EntryIndirect* const entries_from_file__original_order = reinterpret_cast<EntryIndirect*>(malloc(sizeof(EntryIndirect)*entries_from_file.size()));
+	memcpy(entries_from_file__original_order, entries_from_file.data(), sizeof(EntryIndirect)*entries_from_file.size());
 	std::sort(
-		entries_from_file,
-		entries_from_file+entries_from_file.size(),
+		entries_from_file.data(),
+		entries_from_file.data()+entries_from_file.size(),
 		[](const EntryIndirect& a,  const EntryIndirect& b){
-			return (a.pl_pageid > b.pl_pageid);
+			return (a.pl_pageid < b.pl_pageid); // Sort in ascending order
 		}
 	);
+	
 	{
 		unsigned n_entries_without_titles = 0;
 		for (EntryIndirect& x : entries_from_file){
@@ -194,6 +195,7 @@ int main(const int argc,  const char* const* const argv){
 #endif
 	
 	uint64_t n_read_bytes = 0;
+	unsigned entries_from_file__offset = 0;
 	while(true){
 		for (unsigned i = 0;  i < contents_read_into_buf;  ++i){
 			const char c = contents[i];
@@ -226,8 +228,18 @@ int main(const int argc,  const char* const* const argv){
 								// printf("%u %.*s\n", (unsigned)entry.pl_pageid, (int)entry.pl_title_sz, entry.pl_title);
 							}
 						}
-						for (EntryIndirect& x : entries_from_file){
-							if ((x.pl_title_sz == 0) and (unlikely(x.pl_pageid == entry.pl_pageid))){
+						for (unsigned k = entries_from_file__offset;  k < entries_from_file.size();  ++k){
+							EntryIndirect& x = entries_from_file[k];
+							if (unlikely(x.pl_pageid < entry.pl_pageid)){
+								++entries_from_file__offset;
+								fprintf(stderr, "Found %u / %lu\n", entries_from_file__offset, entries_from_file.size());
+								if (unlikely(entries_from_file__offset == entries_from_file.size()))
+									goto break2;
+								continue;
+							}
+							if (x.pl_pageid > entry.pl_pageid)
+								break;
+							if (x.pl_title_sz == 0){
 								x.pl_title_sz = entry.pl_title_sz;
 								memcpy(entries_from_file__which_have_no_pageids__strbuf + entries_from_file__which_have_no_pageids__strbuf_itroffset, entry.pl_title, entry.pl_title_sz);
 								x.pl_title_offset = entries_from_file__which_have_no_pageids__strbuf_itroffset;
@@ -244,6 +256,7 @@ int main(const int argc,  const char* const* const argv){
 			}
 		}
 		
+		break2:
 #ifdef USE_BZIP2
 		if (bz2_decompress_rc == BZ_STREAM_END)
 			break;
@@ -272,14 +285,20 @@ int main(const int argc,  const char* const* const argv){
 	close(compressed_fd);
 #endif
 	
-	for (const EntryIndirect& entry : entries_from_file){
-		if (entry.is_wiki_page){
-			if (entry.pl_pageid != 0)
-				printf("%u ", entry.pl_pageid);
-			else
-				printf("\t");
+	for (unsigned i = 0;  i < entries_from_file.size();  ++i){
+		const EntryIndirect& entry = entries_from_file__original_order[i];
+		for (const EntryIndirect& entry2 : entries_from_file){
+			if (entry2.pl_pageid == entry.pl_pageid){
+				if (entry.is_wiki_page){
+					if (entry.pl_pageid != 0)
+						printf("%u ", entry.pl_pageid);
+					else
+						printf("\t");
+				}
+				printf("%.*s\n", (int)entry2.pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry2.pl_title_offset);
+				break;
+			}
 		}
-		printf("%.*s\n", (int)entry.pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry.pl_title_offset);
 	}
 	
 	if (entries_from_file__which_have_no_pageids__strbuf_sz != 1)
