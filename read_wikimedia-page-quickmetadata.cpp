@@ -241,12 +241,15 @@ int main(const int argc,  const char* const* const argv){
 							}
 							if (x.pl_pageid > entry.pl_pageid)
 								break;
-							if (x.pl_title_sz == 0){
-								x.pl_title_sz = entry.pl_title_sz;
-								memcpy(entries_from_file__which_have_no_pageids__strbuf + entries_from_file__which_have_no_pageids__strbuf_itroffset, entry.pl_title, entry.pl_title_sz);
-								x.pl_title_offset = entries_from_file__which_have_no_pageids__strbuf_itroffset;
-								entries_from_file__which_have_no_pageids__strbuf_itroffset += entry.pl_title_sz;
-								break;
+							{
+								[[unlikely]]
+								if (x.pl_title_sz == 0){
+									x.pl_title_sz = entry.pl_title_sz;
+									memcpy(entries_from_file__which_have_no_pageids__strbuf + entries_from_file__which_have_no_pageids__strbuf_itroffset, entry.pl_title, entry.pl_title_sz);
+									x.pl_title_offset = entries_from_file__which_have_no_pageids__strbuf_itroffset;
+									entries_from_file__which_have_no_pageids__strbuf_itroffset += entry.pl_title_sz;
+									break;
+								}
 							}
 						}
 						entry.reset();
