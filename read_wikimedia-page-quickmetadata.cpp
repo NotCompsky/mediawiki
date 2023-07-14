@@ -296,16 +296,26 @@ int main(const int argc,  const char* const* const argv){
 	
 	for (unsigned i = 0;  i < entries_from_file.size();  ++i){
 		const EntryIndirect& entry = entries_from_file__original_order[i];
-		for (const EntryIndirect& entry2 : entries_from_file){
-			if (entry2.pl_pageid == entry.pl_pageid){
-				if (entry.is_wiki_page){
-					if (entry.pl_pageid != 0)
-						printf("%u ", entry.pl_pageid);
-					else
-						printf("\t");
+		{
+			const EntryIndirect* entry2_ptr = nullptr;
+			if (entry.pl_pageid != 0){
+				for (const EntryIndirect& entry2 : entries_from_file){
+					if (entry2.pl_pageid == entry.pl_pageid){
+						entry2_ptr = &entry2;
+						break;
+					}
 				}
-				printf("%.*s\n", (int)entry2.pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry2.pl_title_offset);
-				break;
+			}
+			if (entry.is_wiki_page){
+				if (entry.pl_pageid != 0)
+					printf("%u ", entry.pl_pageid);
+				else
+					printf("\t");
+			}
+			if (entry2_ptr != nullptr){
+				printf("%.*s\n", (int)entry2_ptr->pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry2_ptr->pl_title_offset);
+			} else {
+				printf("%.*s\n", (int)entry.pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry.pl_title_offset);
 			}
 		}
 	}
