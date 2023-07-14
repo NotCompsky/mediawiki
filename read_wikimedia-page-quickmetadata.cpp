@@ -255,7 +255,11 @@ int main(const int argc,  const char* const* const argv){
 						entry.reset();
 						which_field_currently_parsing = 0;
 					} else {
-						entry.pl_title[entry.pl_title_sz++] = c;
+						if (unlikely(entry.pl_title_sz == 255)){
+							printf("entry.pl_title_sz >= 255: %.255s...\n", entry.pl_title);
+						} else {
+							entry.pl_title[entry.pl_title_sz++] = c;
+						}
 					}
 					break;
 			}
