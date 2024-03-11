@@ -47,6 +47,8 @@ int main(const int argc,  const char* const* const argv){
 		"		All within ~/bin/backupable_from_repos/wikipedia/interesting-wiki-pages/\n"
 		"	-l\n"
 		"		List all page_ids\n"
+		"	-w [FILEPATH]\n"
+		"		Write to output\n"
 	;
 	const char* errstr1 = nullptr;
 	const char* errstr2 = nullptr;
@@ -85,6 +87,7 @@ int main(const int argc,  const char* const* const argv){
 #else
 	const gzFile fd = gzopen(filepath, "rb");
 #endif
+	int output_fd = 1;
 	
 	for (unsigned i = 2;  i < argc;  ++i){
 		const char* const arg = argv[i];
@@ -112,6 +115,18 @@ int main(const int argc,  const char* const* const argv){
 				case 'l':
 					list_all_pageids_and_exit = true;
 					is_bad_arg = false;
+					break;
+				case 'w':
+					++i;
+					if (i != argc){
+						output_fd = open(argv[i], O_WRONLY);
+						if (unlikely(output_fd == -1)){
+							errstr1 = "Cannot open file for writing: ";
+							errstr2 = argv[i];
+							goto print_err_and_exit;
+						}
+						is_bad_arg = false;
+					}
 					break;
 			}
 		}
@@ -308,14 +323,14 @@ int main(const int argc,  const char* const* const argv){
 			}
 			if (entry.is_wiki_page){
 				if (entry.pl_pageid != 0)
-					printf("%u ", entry.pl_pageid);
+					dprintf(output_fd, "%u ", entry.pl_pageid);
 				else
-					printf("\t");
+					dprintf(output_fd, "\t");
 			}
 			if (entry2_ptr != nullptr){
-				printf("%.*s\n", (int)entry2_ptr->pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry2_ptr->pl_title_offset);
+				dprintf(output_fd, "%.*s\n", (int)entry2_ptr->pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry2_ptr->pl_title_offset);
 			} else {
-				printf("%.*s\n", (int)entry.pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry.pl_title_offset);
+				dprintf(output_fd, "%.*s\n", (int)entry.pl_title_sz, entries_from_file__which_have_no_pageids__strbuf+entry.pl_title_offset);
 			}
 		}
 	}
