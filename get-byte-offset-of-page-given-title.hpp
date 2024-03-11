@@ -17,6 +17,8 @@
 
 #define GZBUFSIZE 8192 // As defined in gzguts.h from zlib - reading the source code, it seems almost all decompression is directly into the user-chosen buffer, not this buffer (fd.want's buffer) - (fd.want's buffer) is used for small reads and for the initial 'LOOK' (determining if a file is GZIP)
 
+namespace compsky_wiki_extractor {
+
 namespace get_byte_offset_of_page_given_title {
 	constexpr std::size_t max_line_sz = 19+1+10+1+255;
 }
@@ -37,15 +39,15 @@ void pages_articles_multistream_index_txt_offsetted_gz__deinit(){
 }
 
 template<bool must_be_exact_match>
-std::string_view find_line_containing_title(const int _fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* title_str_buf,  const bool is_wikipedia){
+std::string_view find_line_containing_title(const int _fd,  const char* const title_requested,  const unsigned title_len,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* title_str_buf,  const bool is_wikipedia){
 	using get_byte_offset_of_page_given_title::max_line_sz;
 	
-	if (unlikely(strlen(title_requested) > 255)){
+	if (unlikely(title_len > 255)){
 		write(2, "Title too long\n", 15);
 		return std::string_view(nullptr,0);
 	}
-	memcpy(title_str_buf+1, title_requested, strlen(title_requested));
-	char* const title_str_buf__end = title_str_buf+1 + strlen(title_requested) - 1;
+	memcpy(title_str_buf+1, title_requested, title_len);
+	char* title_str_buf__end = title_str_buf+1 + title_len - 1;
 	const char* title_itr = title_str_buf;
 	if constexpr (must_be_exact_match){
 		title_str_buf[0] = ':';
@@ -137,6 +139,11 @@ std::string_view find_line_containing_title(const int _fd,  const char* const ti
 	return std::string_view(_itr, compsky::utils::ptrdiff(_end_of_line,_itr)+1);
 }
 
+template<bool must_be_exact_match>
+std::string_view find_line_containing_title(const int _fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* title_str_buf,  const bool is_wikipedia){
+	return find_line_containing_title<must_be_exact_match>(_fd, title_requested, strlen(title_requested), gz_contents_buf, gz_contents_buf_sz, title_str_buf, is_wikipedia);
+}
+
 off_t get_byte_offset_given_title(const int fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
 	const std::string_view res = find_line_containing_title<true>(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia);
 	if (res.size() == 0)
@@ -159,8 +166,8 @@ struct OffsetAndPageid {
 	, pageid(_pageid)
 	{}
 };
-OffsetAndPageid get_byte_offset_and_pageid_given_title(const int fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
-	const std::string_view res = find_line_containing_title<true>(fd, title_requested, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia);
+OffsetAndPageid get_byte_offset_and_pageid_given_title(const int fd,  const char* const title_requested,  const unsigned title_len,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
+	const std::string_view res = find_line_containing_title<true>(fd, title_requested, title_len, gz_contents_buf,gz_contents_buf_sz, title_str_buf, is_wikipedia);
 	if (res.size() == 0)
 		return OffsetAndPageid(-1, nullptr);
 	const char* itr = res.data();
@@ -177,4 +184,10 @@ OffsetAndPageid get_byte_offset_and_pageid_given_title(const int fd,  const char
 		pageid += *itr - '0';
 	}*/
 	return OffsetAndPageid(offset, itr);
+}
+
+OffsetAndPageid get_byte_offset_and_pageid_given_title(const int fd,  const char* const title_requested,  char* const gz_contents_buf,  const std::size_t gz_contents_buf_sz,  char* const title_str_buf,  const bool is_wikipedia){
+	return get_byte_offset_and_pageid_given_title(fd, title_requested, strlen(title_requested), gz_contents_buf, gz_contents_buf_sz, title_str_buf, is_wikipedia);
+}
+
 }

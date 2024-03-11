@@ -16,10 +16,7 @@
 #define BZ_NO_STDIO // restricts bzip2 library
 #include <bzlib.h>
 
-namespace extract_page_details {
-	constexpr std::size_t buf1_sz = 1024*1024 * 10;
-	constexpr std::size_t buf_sz = 1024*1024 * 10;
-}
+namespace compsky_wiki_extractor {
 
 /*
 struct IndxAndUrl {
@@ -45,9 +42,19 @@ struct IndxAndUrlOffset {
 	{}
 };
 
-std::string_view process_file(const int compressed_fd,  char* const output_buf,  const char* searching_for_pageid__as_str,  const off_t init_offset_bytes,  uint32_t* all_citation_urls,  const bool extract_as_html){
-	using namespace extract_page_details;
-	
+std::string_view process_file(
+	char* const contents, // pre-allocated buffer for decompressed file output
+	char* const buf1, // pre-allocated buffer for compressed file input
+	const unsigned int contentsbuf_sz,
+	const unsigned int buf1_sz,
+	const int compressed_fd,
+	char* const output_buf, // for desired output
+	const char* searching_for_pageid__as_str,
+	const off_t init_offset_bytes,
+	uint32_t* all_citation_urls,
+	const bool extract_as_html
+	// returns either an error string or a substring of output_buf
+){
 	char searching_for_pageid__buf[4+10+5+1];
 	char* searching_for_pageid = searching_for_pageid__buf;
 	{
@@ -65,18 +72,15 @@ std::string_view process_file(const int compressed_fd,  char* const output_buf, 
 		searching_for_pageend__buf = "\n  </page>\n";
 	}
 	
-	char* const contents = reinterpret_cast<char*>(malloc(buf_sz));
-	
 	bz_stream fd;
 	memset(&fd, 0, sizeof(fd));
-	char* const buf1 = reinterpret_cast<char*>(malloc(buf1_sz));
 	if (unlikely(BZ2_bzDecompressInit(&fd, 0, 0 /*int: variable called 'small' for lower-memory decompression*/) != BZ_OK)){
 		return "\0ERROR: BZ2_bzDecompressInit\n";
 	}
 	fd.next_in = buf1;
 	fd.avail_in = buf1_sz;
 	fd.next_out = contents;
-	fd.avail_out = buf_sz;
+	fd.avail_out = contentsbuf_sz;
 	
 	if (unlikely(lseek(compressed_fd, init_offset_bytes, SEEK_SET) != init_offset_bytes)){
 		return "\0ERROR: lseek\n";
@@ -97,7 +101,7 @@ std::string_view process_file(const int compressed_fd,  char* const output_buf, 
 	const char* searching_for_pageend = searching_for_pageend__buf;
 	const char* searching_for_pageid_start = searching_for_pageid_start__buf;
 	while(true){
-		for (unsigned i = 0;  i < buf_sz - fd.avail_out;  ++i){
+		for (unsigned i = 0;  i < contentsbuf_sz - fd.avail_out;  ++i){
 			const char c = contents[i];
 			*(++output_itr) = c;
 			if (not found_pageid){
@@ -997,7 +1001,7 @@ std::string_view process_file(const int compressed_fd,  char* const output_buf, 
 		
 		if (bz2_decompress_rc == BZ_STREAM_END)
 			break;
-		fd.avail_out = buf_sz;
+		fd.avail_out = contentsbuf_sz;
 		fd.next_out = contents;
 		if (fd.avail_in == 0){
 			fd.next_in = buf1;
@@ -1017,4 +1021,29 @@ std::string_view process_file(const int compressed_fd,  char* const output_buf, 
 	BZ2_bzDecompressEnd(&fd);
 	
 	return std::string_view(_start_of_this_page, _start_of_this_page_sz);
+}
+
+std::string_view process_file(const int compressed_fd,  char* const output_buf,  const char* searching_for_pageid__as_str,  const off_t init_offset_bytes,  uint32_t* all_citation_urls,  const bool extract_as_html){
+	constexpr std::size_t buf1_sz = 1024*1024 * 10;
+	constexpr std::size_t contentsbuf_sz = 1024*1024 * 10;
+	
+	char* const contents = reinterpret_cast<char*>(malloc(contentsbuf_sz));
+	char* const buf1 = reinterpret_cast<char*>(malloc(buf1_sz));
+	const std::string_view res(process_file(
+		contents,
+		buf1,
+		contentsbuf_sz,
+		buf1_sz,
+		compressed_fd,
+		output_buf,
+		searching_for_pageid__as_str,
+		init_offset_bytes,
+		all_citation_urls,
+		extract_as_html
+	));
+	free(buf1);
+	free(contents);
+	return res;
+}
+
 }

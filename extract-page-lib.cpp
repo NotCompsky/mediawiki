@@ -22,6 +22,8 @@ int open_file(const char* const filepath){
 
 extern "C"
 uint64_t extract_page_given_title(const int archive_fd,  const int archiveindices_fd,  char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested,  const int is_wikipedia){
+	using namespace compsky_wiki_extractor;
+	
 	/*{
 		constexpr std::string_view _msg("extract_page_given_title: ");
 		char _buf[_msg.size()+255+1];
@@ -45,6 +47,8 @@ uint64_t extract_page_given_title(const int archive_fd,  const int archiveindice
 
 extern "C"
 uint64_t extract_raw_page_given_title(const int archive_fd,  const int archiveindices_fd,  char* const output_buf,  uint32_t* const all_citation_urls,  const char* const title_requested,  const int is_wikipedia){
+	using namespace compsky_wiki_extractor;
+	
 	const OffsetAndPageid offset_and_pageid(get_byte_offset_and_pageid_given_title(archiveindices_fd, title_requested, gz_contents_buf,buf_sz, title_str_buf, is_wikipedia));
 	if (unlikely(offset_and_pageid.pageid == nullptr))
 		return 0;
@@ -63,6 +67,8 @@ uint64_t extract_raw_page_given_title(const int archive_fd,  const int archivein
 
 extern "C"
 uint64_t get_all_pages_of_interest_as_html(char* const output_buf,  const char* const filename){
+	using namespace compsky_wiki_extractor;
+	
 	std::vector<wikipedia::page::EntryIndirect> entries_from_file;
 	std::vector<wikipedia::page::StringView> entries_from_file__which_have_no_pageids;
 	std::vector<wikipedia::page::FileToOffset> entries_from_file__file_indx_offsets;
