@@ -31,9 +31,16 @@ int main(const int argc,  const char* const* const argv){
 		return 1;
 	}
 	const std::string_view errstr(process_file(compressed_fd, output_buf, offset_and_pageid.pageid, offset_and_pageid.offset, nullptr, true));
-	if (unlikely(errstr.data()[0] == '\0')){
-		write(2, errstr.data(), errstr.size());
-		return 1;
+	if (likely(errstr.size() != 0)){
+		if (unlikely(errstr.data()[0] == '\0')){
+			write(2, "ERROR\n", 6);
+			write(2, errstr.data()+1, errstr.size()-1);
+			return 1;
+		}
+		printf("%lu bytes\n", errstr.size());
+		write(1, errstr.data(), errstr.size());
+	} else {
+		write(2, "ERROR: Returned empty page\n", 27);
 	}
 	return 0;
 }
