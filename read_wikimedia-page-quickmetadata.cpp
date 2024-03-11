@@ -249,7 +249,22 @@ int main(const int argc,  const char* const* const argv){
 							EntryIndirect& x = entries_from_file[k];
 							if (unlikely(x.pl_pageid < entry.pl_pageid)){
 								++entries_from_file__offset;
-								fprintf(stderr, "Found %u / %lu\n", entries_from_file__offset, entries_from_file.size());
+								static char printbuf[27+1] = {
+									'F', 'o', 'u', 'n', 'd', ' ',
+									' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+									'/',
+									' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+									'\n'
+								};
+								if (entries_from_file__offset % 100 == 0){
+									char* _itr = printbuf+6;
+									compsky::asciify::asciify(_itr, entries_from_file__offset);
+									if (entries_from_file__offset == 100){
+										_itr = printbuf + 6+10+1;
+										compsky::asciify::asciify(_itr, entries_from_file.size());
+									}
+									write(2, printbuf, 28);
+								}
 								if (unlikely(entries_from_file__offset == entries_from_file.size()))
 									goto break2;
 								continue;
@@ -271,7 +286,13 @@ int main(const int argc,  const char* const* const argv){
 						which_field_currently_parsing = 0;
 					} else {
 						if (unlikely(entry.pl_title_sz == 255)){
-							printf("entry.pl_title_sz >= 255: %.255s...\n", entry.pl_title);
+							static char warning_msg[26+255+4] = {
+								'e', 'n', 't', 'r', 'y', '.', 'p', 'l', '_', 't', 'i', 't', 'l', 'e', '_', 's', 'z', ' ', '>', '=', ' ', '2', '5', '5', ':', ' ',
+								' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+								'.','.','.','\n'
+							};
+							memcpy(warning_msg+26, entry.pl_title, 255);
+							write(2, warning_msg, 26+255+4);
 						} else {
 							entry.pl_title[entry.pl_title_sz++] = c;
 						}
