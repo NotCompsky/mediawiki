@@ -18,183 +18,38 @@
 
 namespace compsky_wiki_extractor {
 
-/*
-struct IndxAndUrl {
-	const std::string_view url;
-	const unsigned indx;
-	IndxAndUrl(const std::string_view _url,  const unsigned _indx)
-	: url(_url)
-	, indx(_indx)
-	{}
-	IndxAndUrl(char* const _start,  const unsigned _sz,  const unsigned _indx)
-	: url(_start, _sz)
-	, indx(_indx)
-	{}
-};*/
-struct IndxAndUrlOffset {
-	const unsigned start_offset;
-	const unsigned end_offset;
-	const unsigned indx;
-	IndxAndUrlOffset(const unsigned _start_offset,  const unsigned _end_offset,  const unsigned _indx)
-	: start_offset(_start_offset)
-	, end_offset(_end_offset)
-	, indx(_indx)
-	{}
-};
+void maybevector__emplace_back(std::vector<std::string_view>& citations,  const std::size_t citations_size,  char* const str_begin,  const std::size_t str_len){
+	citations.emplace_back(str_begin, str_len);
+}
+template<unsigned arrsz>
+void maybevector__emplace_back(std::array<std::string_view,arrsz>& citations,  const std::size_t citations_size,    char* const str_begin,  const std::size_t str_len){
+	citations[citations_size] = std::string_view(str_begin, str_len);
+}
 
-std::string_view process_file(
-	char* const contents, // pre-allocated buffer for decompressed file output
-	char* const buf1, // pre-allocated buffer for compressed file input
-	const unsigned int contentsbuf_sz,
-	const unsigned int buf1_sz,
-	const int compressed_fd,
-	char* const output_buf, // for desired output
-	const char* searching_for_pageid__as_str,
-	const off_t init_offset_bytes,
-	uint32_t* all_citation_urls,
-	const bool extract_as_html
-	// returns either an error string or a substring of output_buf
+std::size_t maybevector__size(std::vector<std::string_view>& citations,  const std::size_t citations_size){
+	return citations.size();
+}
+template<unsigned arrsz>
+std::size_t maybevector__size(std::array<std::string_view,arrsz>& citations,  const std::size_t citations_size){
+	return citations_size;
+}
+
+template<typename T>
+char* wikitext_to_html(
+	char* const _start_of_this_page
+	, char* const output_buf
+#ifndef NO_WIKITEXT_CITATION_ARRAY
+	, uint32_t* const all_citation_urls
+#endif
 ){
-	char searching_for_pageid__buf[4+10+5+1];
-	char* searching_for_pageid = searching_for_pageid__buf;
-	{
-		char* _itr = searching_for_pageid__buf;
-		while((*searching_for_pageid__as_str >= '0') and (*searching_for_pageid__as_str <= '9')){
-			*(_itr++) = *searching_for_pageid__as_str;
-			++searching_for_pageid__as_str;
-		}
-		compsky::asciify::asciify(_itr, '<','/','i','d','>', '\0');
-	}
-	
-	const char* searching_for_pageend__buf = "</text>\n";
-	const char* const searching_for_pageid_start__buf = "<id>";
-	if (extract_as_html){
-		searching_for_pageend__buf = "\n  </page>\n";
-	}
-	
-	bz_stream fd;
-	memset(&fd, 0, sizeof(fd));
-	if (unlikely(BZ2_bzDecompressInit(&fd, 0, 0 /*int: variable called 'small' for lower-memory decompression*/) != BZ_OK)){
-		return std::string_view("\0ERROR: BZ2_bzDecompressInit\n", 29);
-	}
-	fd.next_in = buf1;
-	fd.avail_in = buf1_sz;
-	fd.next_out = contents;
-	fd.avail_out = contentsbuf_sz;
-	
-	if (unlikely(lseek(compressed_fd, init_offset_bytes, SEEK_SET) != init_offset_bytes)){
-		return std::string_view("\0ERROR: lseek\n", 14);
-	}
-	fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
-	int bz2_decompress_rc = BZ2_bzDecompress(&fd);
-	if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
-		return std::string_view("\0ERROR: BZ2_bzDecompress\n", 25);
-	}
-	
-	char* _start_of_this_page = nullptr;
-	std::size_t _start_of_this_page_sz;
-	
-	bool found_pageid = false;
-	bool found_pageid_start = false;
-	bool success = false;
-	char* output_itr = output_buf - 1;
-	const char* searching_for_pageend = searching_for_pageend__buf;
-	const char* searching_for_pageid_start = searching_for_pageid_start__buf;
-	while(true){
-		for (unsigned i = 0;  i < contentsbuf_sz - fd.avail_out;  ++i){
-			const char c = contents[i];
-			*(++output_itr) = c;
-			if (not found_pageid){
-				if (unlikely(found_pageid_start)){
-					if (c == *searching_for_pageid){
-						++searching_for_pageid;
-						if (*searching_for_pageid == 0){
-							found_pageid = true;
-						}
-					} else {
-						searching_for_pageid = searching_for_pageid__buf;
-						searching_for_pageid_start = searching_for_pageid_start__buf;
-						found_pageid_start = false;
-						output_itr = output_buf - 1;
-					}
-				} else if (unlikely(c == *searching_for_pageid_start)){
-					++searching_for_pageid_start;
-					if (*searching_for_pageid_start == 0){
-						found_pageid_start = true;
-					}
-				} else {
-					searching_for_pageid_start = searching_for_pageid_start__buf;
-				}
-			} else {
-				if (unlikely(c == *searching_for_pageend)){
-					++searching_for_pageend;
-					if (*searching_for_pageend == 0){
-						success = true;
-						_start_of_this_page = output_buf;
-						
-						while(true){
-							if (
-								(_start_of_this_page[0] == '<') and
-								(_start_of_this_page[1] == 'p') and
-								(_start_of_this_page[2] == 'a') and
-								(_start_of_this_page[3] == 'g') and
-								(_start_of_this_page[4] == 'e') and
-								(_start_of_this_page[5] == '>') and
-								(_start_of_this_page[6] == '\n')
-							)
-								break;
-							++_start_of_this_page;
-						}
-						
-						// write(2, output_buf, compsky::utils::ptrdiff(output_itr,_start_of_this_page));
-						
-						if (extract_as_html){
-							while(true){
-								if (
-									(_start_of_this_page[0] == '<') and
-									(_start_of_this_page[1] == 't') and
-									(_start_of_this_page[2] == 'e') and
-									(_start_of_this_page[3] == 'x') and
-									(_start_of_this_page[4] == 't') and
-									(_start_of_this_page[5] == ' ')
-								)
-									break;
-								++_start_of_this_page;
-							}
-							_start_of_this_page += 6;
-							while(*_start_of_this_page != '>')
-								++_start_of_this_page;
-							++_start_of_this_page;
-							
-							while(true){
-								if (unlikely(output_itr == _start_of_this_page)){
-									break;
-								}
-								if (
-									(output_itr[0] == '<') and
-									(output_itr[1] == '/') and
-									(output_itr[2] == 't') and
-									(output_itr[3] == 'e') and
-									(output_itr[4] == 'x') and
-									(output_itr[5] == 't') and
-									(output_itr[6] == '>')
-								)
-									break;
-								--output_itr;
-							}
-						}
-						
-						if (extract_as_html){
-							const std::size_t sz = compsky::utils::ptrdiff(output_itr,_start_of_this_page);
-							memcpy(output_buf, _start_of_this_page, sz);
-							_start_of_this_page = output_buf + sz;
-							output_itr = _start_of_this_page;
+							char* output_itr = _start_of_this_page;
 							char* _itr = output_buf;
 							bool processed_this_char;
 							bool is_in_pre = false;
 							bool is_in_blockquote_sfdsfafsds = false;
 							bool is_in_blockquote_sfdsfafsds2= false;
-							std::vector<std::string_view> citations;
+							T citations;
+							std::size_t citations_indx = 0;
 							bool reflist_found = false;
 							while(_itr != _start_of_this_page){
 								processed_this_char = false;
@@ -429,9 +284,10 @@ std::string_view process_file(
 											++itr;
 										}
 										if (likely((itr[0] == ']') and (first_space_at != nullptr))){
-											citations.emplace_back(_itr+1, compsky::utils::ptrdiff(first_space_at,_itr+1));
+											maybevector__emplace_back(citations, citations_indx, _itr+1, compsky::utils::ptrdiff(first_space_at,_itr+1));
+											++citations_indx;
 											const std::string_view file_type_name(first_space_at+1, compsky::utils::ptrdiff(itr,first_space_at+1));
-											compsky::asciify::asciify(output_itr, "<a id=\"citation_use",citations.size(),"\" href=\"#citation",citations.size(),"\">[",file_type_name,"]</a>");
+											compsky::asciify::asciify(output_itr, "<a id=\"citation_use",maybevector__size(citations, citations_indx),"\" href=\"#citation",maybevector__size(citations, citations_indx),"\">[",file_type_name,"]</a>");
 											_itr = itr;
 											processed_this_char = true;
 										}
@@ -550,8 +406,9 @@ std::string_view process_file(
 											compsky::asciify::asciify(output_itr, "</ref>");
 										}
 										
-										citations.emplace_back(citation_start, compsky::utils::ptrdiff(itr,citation_start));
-										compsky::asciify::asciify(output_itr, "<a id=\"citation_use",citations.size(),"\" href=\"#citation",citations.size(),"\">[",citations.size(),"]</a>");
+										maybevector__emplace_back(citations, citations_indx, citation_start, compsky::utils::ptrdiff(itr,citation_start));
+										++citations_indx;
+										compsky::asciify::asciify(output_itr, "<a id=\"citation_use",maybevector__size(citations, citations_indx),"\" href=\"#citation",maybevector__size(citations, citations_indx),"\">[",maybevector__size(citations, citations_indx),"]</a>");
 										_itr = itr + 1;
 										processed_this_char = true;
 									}
@@ -950,7 +807,7 @@ std::string_view process_file(
 							compsky::asciify::asciify(output_itr, "<div class=\"citation_ref\" id=\"reflist\">");
 							
 							unsigned all_citation_urls__indx = 0;
-							for (unsigned i = 0;  i < citations.size();  ++i){
+							for (unsigned i = 0;  i < maybevector__size(citations, citations_indx);  ++i){
 								const std::string_view& sv = citations[i];
 								const char* const sv_data = sv.data();
 								compsky::asciify::asciify(output_itr, "<div id=\"citation",i+1,"\"><a href=\"#citation_use",i+1,"\">[",i+1,"]</a> ");
@@ -974,20 +831,199 @@ std::string_view process_file(
 										if ((sv[url_end_] == ' ') or (sv[url_end_] == '|'))
 											break;
 									}
+#ifndef NO_WIKITEXT_CITATION_ARRAY
 									if (all_citation_urls != nullptr){
 										all_citation_urls[all_citation_urls__indx++] = buf_offset+url_start_;
 										all_citation_urls[all_citation_urls__indx++] = buf_offset+url_end_;
 										all_citation_urls[all_citation_urls__indx++] = i;
 									}
+#endif
 								}
 								compsky::asciify::asciify(output_itr, sv, "</div>");
 							}
+#ifndef NO_WIKITEXT_CITATION_ARRAY
 							if (all_citation_urls != nullptr){
 								all_citation_urls[all_citation_urls__indx++] = 0;
 								all_citation_urls[all_citation_urls__indx++] = 0;
 								all_citation_urls[all_citation_urls__indx++] = 0;
 							}
+#endif
 							compsky::asciify::asciify(output_itr, "</div>");
+}
+
+/*
+struct IndxAndUrl {
+	const std::string_view url;
+	const unsigned indx;
+	IndxAndUrl(const std::string_view _url,  const unsigned _indx)
+	: url(_url)
+	, indx(_indx)
+	{}
+	IndxAndUrl(char* const _start,  const unsigned _sz,  const unsigned _indx)
+	: url(_start, _sz)
+	, indx(_indx)
+	{}
+};*/
+struct IndxAndUrlOffset {
+	const unsigned start_offset;
+	const unsigned end_offset;
+	const unsigned indx;
+	IndxAndUrlOffset(const unsigned _start_offset,  const unsigned _end_offset,  const unsigned _indx)
+	: start_offset(_start_offset)
+	, end_offset(_end_offset)
+	, indx(_indx)
+	{}
+};
+
+std::string_view process_file(
+	char* const contents, // pre-allocated buffer for decompressed file output
+	char* const buf1, // pre-allocated buffer for compressed file input
+	const unsigned int contentsbuf_sz,
+	const unsigned int buf1_sz,
+	const int compressed_fd,
+	char* const output_buf, // for desired output
+	const char* searching_for_pageid__as_str,
+	const off_t init_offset_bytes,
+	uint32_t* all_citation_urls,
+	const bool extract_as_html
+	// returns either an error string or a substring of output_buf
+){
+	char searching_for_pageid__buf[4+10+5+1];
+	char* searching_for_pageid = searching_for_pageid__buf;
+	{
+		char* _itr = searching_for_pageid__buf;
+		while((*searching_for_pageid__as_str >= '0') and (*searching_for_pageid__as_str <= '9')){
+			*(_itr++) = *searching_for_pageid__as_str;
+			++searching_for_pageid__as_str;
+		}
+		compsky::asciify::asciify(_itr, '<','/','i','d','>', '\0');
+	}
+	
+	const char* searching_for_pageend__buf = "</text>\n";
+	const char* const searching_for_pageid_start__buf = "<id>";
+	if (extract_as_html){
+		searching_for_pageend__buf = "\n  </page>\n";
+	}
+	
+	bz_stream fd;
+	memset(&fd, 0, sizeof(fd));
+	if (unlikely(BZ2_bzDecompressInit(&fd, 0, 0 /*int: variable called 'small' for lower-memory decompression*/) != BZ_OK)){
+		return std::string_view("\0ERROR: BZ2_bzDecompressInit\n", 29);
+	}
+	fd.next_in = buf1;
+	fd.avail_in = buf1_sz;
+	fd.next_out = contents;
+	fd.avail_out = contentsbuf_sz;
+	
+	if (unlikely(lseek(compressed_fd, init_offset_bytes, SEEK_SET) != init_offset_bytes)){
+		return std::string_view("\0ERROR: lseek\n", 14);
+	}
+	fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
+	int bz2_decompress_rc = BZ2_bzDecompress(&fd);
+	if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
+		return std::string_view("\0ERROR: BZ2_bzDecompress\n", 25);
+	}
+	
+	char* _start_of_this_page = nullptr;
+	std::size_t _start_of_this_page_sz;
+	
+	bool found_pageid = false;
+	bool found_pageid_start = false;
+	bool success = false;
+	char* output_itr = output_buf - 1;
+	const char* searching_for_pageend = searching_for_pageend__buf;
+	const char* searching_for_pageid_start = searching_for_pageid_start__buf;
+	while(true){
+		for (unsigned i = 0;  i < contentsbuf_sz - fd.avail_out;  ++i){
+			const char c = contents[i];
+			*(++output_itr) = c;
+			if (not found_pageid){
+				if (unlikely(found_pageid_start)){
+					if (c == *searching_for_pageid){
+						++searching_for_pageid;
+						if (*searching_for_pageid == 0){
+							found_pageid = true;
+						}
+					} else {
+						searching_for_pageid = searching_for_pageid__buf;
+						searching_for_pageid_start = searching_for_pageid_start__buf;
+						found_pageid_start = false;
+						output_itr = output_buf - 1;
+					}
+				} else if (unlikely(c == *searching_for_pageid_start)){
+					++searching_for_pageid_start;
+					if (*searching_for_pageid_start == 0){
+						found_pageid_start = true;
+					}
+				} else {
+					searching_for_pageid_start = searching_for_pageid_start__buf;
+				}
+			} else {
+				if (unlikely(c == *searching_for_pageend)){
+					++searching_for_pageend;
+					if (*searching_for_pageend == 0){
+						success = true;
+						_start_of_this_page = output_buf;
+						
+						while(true){
+							if (
+								(_start_of_this_page[0] == '<') and
+								(_start_of_this_page[1] == 'p') and
+								(_start_of_this_page[2] == 'a') and
+								(_start_of_this_page[3] == 'g') and
+								(_start_of_this_page[4] == 'e') and
+								(_start_of_this_page[5] == '>') and
+								(_start_of_this_page[6] == '\n')
+							)
+								break;
+							++_start_of_this_page;
+						}
+						
+						// write(2, output_buf, compsky::utils::ptrdiff(output_itr,_start_of_this_page));
+						
+						if (extract_as_html){
+							while(true){
+								if (
+									(_start_of_this_page[0] == '<') and
+									(_start_of_this_page[1] == 't') and
+									(_start_of_this_page[2] == 'e') and
+									(_start_of_this_page[3] == 'x') and
+									(_start_of_this_page[4] == 't') and
+									(_start_of_this_page[5] == ' ')
+								)
+									break;
+								++_start_of_this_page;
+							}
+							_start_of_this_page += 6;
+							while(*_start_of_this_page != '>')
+								++_start_of_this_page;
+							++_start_of_this_page;
+							
+							while(true){
+								if (unlikely(output_itr == _start_of_this_page)){
+									break;
+								}
+								if (
+									(output_itr[0] == '<') and
+									(output_itr[1] == '/') and
+									(output_itr[2] == 't') and
+									(output_itr[3] == 'e') and
+									(output_itr[4] == 'x') and
+									(output_itr[5] == 't') and
+									(output_itr[6] == '>')
+								)
+									break;
+								--output_itr;
+							}
+						}
+						
+						if (extract_as_html){
+							const std::size_t sz = compsky::utils::ptrdiff(output_itr,_start_of_this_page);
+							for (unsigned i = 0;  i < sz;  ++i)
+								output_buf[i] = _start_of_this_page[i];
+								// because I think maybe this would overwrite itself: memcpy(output_buf, _start_of_this_page, sz);
+							_start_of_this_page = output_buf + sz;
+							output_itr = wikitext_to_html<std::vector<std::string_view>>(_start_of_this_page, output_buf, all_citation_urls);
 						}
 						
 						_start_of_this_page_sz = compsky::utils::ptrdiff(output_itr,_start_of_this_page);
