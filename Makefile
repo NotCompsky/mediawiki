@@ -20,3 +20,6 @@ read_wikimedia-pagelinks-sql--old:
 
 ~/lib/extract-page.so:
 	c++ -std=c++20 -O3 extract-page-lib.cpp -o ~/lib/extract-page.so -lbz2 -lz -fPIC -shared -march=native
+
+wikitext2html.wasm:
+	clang++-15 -mbulk-memory '-DNO_SIMD' '-DRPILL_IS_FOR_PUBLIC_TESTING=${RPILL_IS_FOR_PUBLIC_TESTING}' -fno-delete-null-pointer-checks -Wall --std=c++20 --target=wasm32 -O3 -I/usr/local/lib --no-standard-libraries "-Wl,--initial-memory=10944512" -Wl,--export=wikitext2html -Wl,--no-entry -o wikitext2html.wasm wikitext_to_html.cpp -DNO_IMPORT_STD_VECTOR -DNO_IMPORT_STD_STRINGVIEW -DNO_WIKITEXT_CITATION_ARRAY -DNO_IMPORT_COMPSKY_ASCIIFY -DWASM_TYPEDEFS
