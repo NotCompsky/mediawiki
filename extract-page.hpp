@@ -75,7 +75,7 @@ std::string_view process_file(
 	bz_stream fd;
 	memset(&fd, 0, sizeof(fd));
 	if (unlikely(BZ2_bzDecompressInit(&fd, 0, 0 /*int: variable called 'small' for lower-memory decompression*/) != BZ_OK)){
-		return "\0ERROR: BZ2_bzDecompressInit\n";
+		return std::string_view("\0ERROR: BZ2_bzDecompressInit\n", 29);
 	}
 	fd.next_in = buf1;
 	fd.avail_in = buf1_sz;
@@ -83,12 +83,12 @@ std::string_view process_file(
 	fd.avail_out = contentsbuf_sz;
 	
 	if (unlikely(lseek(compressed_fd, init_offset_bytes, SEEK_SET) != init_offset_bytes)){
-		return "\0ERROR: lseek\n";
+		return std::string_view("\0ERROR: lseek\n", 14);
 	}
 	fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
 	int bz2_decompress_rc = BZ2_bzDecompress(&fd);
 	if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
-		return "\0ERROR: BZ2_bzDecompress\n";
+		return std::string_view("\0ERROR: BZ2_bzDecompress\n", 25);
 	}
 	
 	char* _start_of_this_page = nullptr;
@@ -1007,12 +1007,12 @@ std::string_view process_file(
 			fd.next_in = buf1;
 			fd.avail_in = read(compressed_fd, fd.next_in, buf1_sz);
 			if (unlikely(fd.avail_in == 0)){
-				return "\0ERROR: Reached end of file?\n";
+				return std::string_view("\0ERROR: Reached end of file?", 30);
 			}
 		}
 		bz2_decompress_rc = BZ2_bzDecompress(&fd);
 		if (unlikely((bz2_decompress_rc != BZ_OK) and (bz2_decompress_rc != BZ_STREAM_END))){
-			return "\0ERROR: BZ2_bzDecompress\n";
+			return std::string_view("\0ERROR: BZ2_bzDecompress\n", 25);
 		}
 	}
 	
