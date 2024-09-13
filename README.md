@@ -1,5 +1,7 @@
 # Description
 
+tl;dr: Ugly but readable. Very fast, available in WASM (unlike all alternatives, which are server-side).
+
 Render Wikipedia pages from a compressed archive.
 
 Wikipedia's source code is written in MediaWiki - which is notoriously complex. There are very few libraries that render MediaWiki pages - the existing ones rely on a complex render pipeline that can involve numerous network requests (slow).
