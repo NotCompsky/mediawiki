@@ -1,6 +1,6 @@
 # Description
 
-tl;dr: Ugly but readable. Very fast, available in WASM (unlike all alternatives, which are server-side).
+*tl;dr: Ugly but readable. Very fast, available in WASM (unlike all alternatives, which are server-side).*
 
 Render Wikipedia pages from a compressed archive.
 
