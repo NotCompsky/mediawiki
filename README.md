@@ -11,3 +11,9 @@ This, written in C++, is very fast. But it lacks most features (it doesn't even 
 ![mediawiki1](https://github.com/user-attachments/assets/5c5b8df1-b51b-406a-828a-dce1389110f7)
 
 ![mediawiki2](https://github.com/user-attachments/assets/9ff51f9e-897b-4ae1-ba7d-55cabb505462)
+
+# Building
+
+Requires [libcompsky](https://github.com/NotCompsky/libcompsky) and a C++ compiler.
+
+It probably works on Linux, Mac and Windows, but is only tested on Linux.
